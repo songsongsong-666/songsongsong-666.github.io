@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Missing Semester Notes - Security and Cryptography&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Missing Semester Notes - Security and Cryptography" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Missing Semester Notes - Security and Cryptography</h1><p class="article date">2020-06-07</p></section><article class="article markdown-body"><p>一些基本的密码学概念。目的并不是让你设计安全系统或者加密协议，而是让你能够理解现在正在使用的密码协议和工具。</p>
+<p>原文链接：https://missing.csail.mit.edu/2020/security/</p>
+<h1 id="熵">熵</h1>
+<p>熵是对无序性的一种测度。这个概念是非常有用的，例如当你想判断一个密码是否安全的时候。</p>
+<p><img  src="https://imgs.xkcd.com/comics/password_strength.png"
+        alt="XKCD"/></p>
+<p>根据上图阐释的，一个叫“correcthorsebatterystaple”的密码会远比“Tr0ub4dor&amp;3”安全的多。但你如何量化他们呢？</p>
+<p>熵通常按照比特位进行测量，且当从均匀随机分布中产生结果时，熵等价于<code>log_2(# of possibilities)</code>。一个公平的丢硬币游戏可以得到1比特的熵，一个丢骰子游戏可以得到约2.58比特的的熵。</p>
+<p>你应该考虑到攻击者是知道密码的模型的，但是无法获知随机性（例如丢骰子）的角度来选择一个密码。</p>
+<p>多少位的熵才够呢？这取决于你面临的威胁模型。对于在线盲猜，40位熵应该就足够了；对于离线的情况，我们需要更强的密码（例如80位）</p>
+<h1 id="哈希函数">哈希函数</h1>
+<p>一个<a href="https://en.wikipedia.org/wiki/Cryptographic_hash_function"target="_blank">密码学哈希函数</a>把任意长度的数据映射到一个固定长度的空间内，并拥有一些特别的属性。一个粗略的对哈希函数的定义如下：</p>
+<pre><code>hash(value: array&lt;byte&gt;) -&gt; vector&lt;byte, N&gt;  (for some fixed N)
+</code></pre><p>一个例子是<a href="https://en.wikipedia.org/wiki/SHA-1"target="_blank">SHA1</a>，Git中就在用它。它将任意长度的输入映射到160位长的输出中（可以被40个十六进制字符表示）。我们可以试试用<code>sha1sum</code>来得到SHA1哈希值</p>
+<pre><code>$ printf 'hello' | sha1sum
+aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
+$ printf 'hello' | sha1sum
+aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
+$ printf 'Hello' | sha1sum 
+f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0
+</code></pre><p>从一个更高的角度来看，一个哈希函数可以被想象成一个具有几乎不可逆与确定性的随机函数（这是一个哈希函数的<a href="https://en.wikipedia.org/wiki/Random_oracle"target="_blank">理想模型</a>）。一个哈希函数有如下的属性：</p>
+<ul>
+<li>确定性：同样的输入总是能得到同样的输出</li>
+<li>不可逆：在你仅仅拥有输出结果的情况下，你几乎不可能得到任何一个它的输入值</li>
+<li>难以目标碰撞： 给出一个输入，你很难找到另一个与它拥有相同输出的输入值</li>
+<li>难以碰撞： 你很难找到两个输入使它们拥有相同的输出值（这个比上一条更强）</li>
+</ul>
+<p>注意：虽然SHA-1可以在一些特定的目的下使用，但是它已经<a href="https://shattered.io/"target="_blank">不再</a>被认为是一个强的密码学哈希函数了。你可以在<a href="https://valerieaurora.org/hash.html"target="_blank">这里</a>找到还活着的哈希函数表。然而，选择一个特别的哈希函数已经超过了本课的范围。如果你想知道的话需要去学专门的密码学课程咯。</p>
+<h2 id="应用">应用</h2>
+<ul>
+<li>Git，对于内容编址的存储。哈希函数是一个更加笼统的概念（非密码学哈希函数）。为什么Git要使用密码学哈希函数呢？</li>
+<li>文件的概要。软件在分发时一般会被扔到不同的镜像服务器上去，而这些服务器往往没那么高的可信度。如何验证你下载的文件和官方发布的是同一个文件呢？这时候就可以用哈希值进行比较了。</li>
+<li><a href="https://en.wikipedia.org/wiki/Commitment_scheme"target="_blank">承诺方案</a>。假设你需要公开一个特定值，但你当前不打算让别人知道，在日后你需要将这个值公之于众，那么如何证明你公布的值就是你之前承诺的那个值呢？例如你抽奖活动开始前公布抽奖方案或者获奖号码）那么你就可以先将你需要公布的值的哈希值公布出来，待你将值公布出来的时候，所有人可以通过它的哈希值来进行验证。</li>
+</ul>
+<h1 id="密钥派生功能">密钥派生功能</h1>
+<p>作为一个与密码学哈希函数相关的概念，<a href="https://en.wikipedia.org/wiki/Key_derivation_function"target="_blank">密钥派生函数KDF</a>被许多应用程序使用着，包括生成固定长度的输出作为其他密码学算法的密钥。一般来说，密码派生函数是故意很慢的，为了防止暴力破解。</p>
+<h2 id="应用-1">应用</h2>
+<ul>
+<li>从密码短语中生成密钥提供给其他密码学函数（例如对称密码系统）</li>
+<li>存储登录凭证。直接存储明文密钥肯定是不行的，正确的方法应该是对于每个用户，生成并存储一个随机的<a href="https://en.wikipedia.org/wiki/Salt_%28cryptography%29"target="_blank">盐</a><code>salt = random()</code>，并存储<code>KDF(password + salt)</code>，并在用户登录时重新计算带盐的密码</li>
+</ul>
+<h1 id="对称密码系统">对称密码系统</h1>
+<p>说到密码学，你可能脑海里第一个浮现出的就是用来隐藏一段信息内容的方法。对称密码系统通过以下函数来完成功能：</p>
+<pre><code>keygen() -&gt; key  (this function is randomized)
+
+encrypt(plaintext: array&lt;byte&gt;, key) -&gt; array&lt;byte&gt;  (the ciphertext)
+decrypt(ciphertext: array&lt;byte&gt;, key) -&gt; array&lt;byte&gt;  (the plaintext)
+</code></pre><p>加密函数的功能是给出在没有密钥的情况下无法还原成明文的密文。解密函数要求有显式正确的属性，也就是说<code>decrypt(encrypt(m, k), k) = m</code></p>
+<p>现在，一个被广泛使用的对称加密系统是<a href="https://en.wikipedia.org/wiki/Advanced_Encryption_Standard"target="_blank">AES</a></p>
+<h2 id="应用-2">应用</h2>
+<ul>
+<li>在不可信的云服务中加密你存储的文件。这个可以与KDF一起使用，所以你可以用一个密码短语来加密你的文件，通过<code>key = KDF(密码短语)</code>来生成key使用加密函数<code>encrypt(file, key)</code>来存储。</li>
+</ul>
+<h1 id="非对称密码系统">非对称密码系统</h1>
+<p>术语“非对称”的意思是有两个密钥且处于不同的角色。一个私钥，正如其名，需要保持私密性；而公钥可以被公之于众并且不影响安全性（不像对称加密系统里的密钥）。非对称加密系统提供了如下的函数用来加解密与签名验证：</p>
+<pre><code>keygen() -&gt; (public key, private key)  (this function is randomized)
+
+encrypt(plaintext: array&lt;byte&gt;, public key) -&gt; array&lt;byte&gt;  (the ciphertext)
+decrypt(ciphertext: array&lt;byte&gt;, private key) -&gt; array&lt;byte&gt;  (the plaintext)
+
+sign(message: array&lt;byte&gt;, private key) -&gt; array&lt;byte&gt;  (the signature)
+verify(message: array&lt;byte&gt;, signature: array&lt;byte&gt;, public key) -&gt; bool  (whether or not the signature is valid)
+</code></pre><p>加解密函数有着与对称加密系统相同的属性。一个消息可以被公钥加密，并且无法在没有私钥的情况下解密。解密函数拥有显式正确性，也就是说<code>decrypt(encrypt(m, public key), private key) = m</code></p>
+<p>对称与非对称密码系统可以比作物理的锁。一个对称密码系统像一个门锁，没有钥匙的人就打不开锁。一个非对称密码系统就像一个带有钥匙的挂锁，你可以对某人解锁（公钥），然后它们把消息放进箱子之后把锁扣上，之后只有持有钥匙的人（私钥）才能再次打开挂锁看到消息。</p>
+<p>签名验证函数有着和理想中物理签名一样的属性，造假是非常困难的。不论是什么消息，没有私钥，产生一个能够签名使得<code>verify(message, signature, public key)</code>返回真是几乎不可能的。当然了，验证函数需要有显式正确性<code>verify(message, sign(message, private key), public key) = true</code></p>
+<h2 id="应用-3">应用</h2>
+<ul>
+<li><a href="https://en.wikipedia.org/wiki/Pretty_Good_Privacy"target="_blank">PGP</a>邮件加密。人们可以把它们的公钥扔到网上（例如PGP keyserver，或者<a href="https://keybase.io/"target="_blank">Keybase</a>。这样每个人都可以发送被加密过的邮件。</li>
+<li>加密信息。像<a href="https://signal.org/"target="_blank">Signal</a>和<a href="https://keybase.io/"target="_blank">Keybase</a>都是用非对称加密进行通讯加密。</li>
+<li>对软件签名。Git对于commit和tags提供GPG签名。有了已发布的公钥，任何人都可以验证被认证过的软件。</li>
+</ul>
+<h2 id="密钥分发">密钥分发</h2>
+<p>非对称加密听起来牛逼爆了，但还有一个很大的挑战是如何将公钥与真实世界的身份对应起来。有许多方案尝试解决这些问题。Signal有一个简单的解决方案：信任首次使用，并支持外带公钥交换（你亲自验证朋友的安全码）。PGP有不同的解决方案，使用了<a href="https://en.wikipedia.org/wiki/Web_of_trust"target="_blank">信任网</a>。Keybase也有另一个方案叫<a href="https://keybase.io/blog/chat-apps-softer-than-tofu"target="_blank">社会证明</a>。每个模型都有它的优点，授课者更喜欢Keybase的模型</p>
+<h1 id="案例学习">案例学习</h1>
+<h2 id="密码管理器">密码管理器</h2>
+<p>这是每个人都应该试试的必要工具。例如<a href="https://keepassxc.org/"target="_blank">KeePassXC</a>。密码管理器能让你在每个网站都使用独一无二且随机生成的高强度密码。然后它们使用对称密码系统对你存储的密码进行加密。</p>
+<p>使用密码管理器可以让你的避免重复使用一个密码，这样即使某个网站被爆开了也没事。这样你只需要记住一个主密码就行了。</p>
+<h2 id="两步验证">两步验证</h2>
+<p><a href="https://en.wikipedia.org/wiki/Multi-factor_authentication"target="_blank">2FA</a>要求你在使用密码短语的同时使用一个两步验证身份认证器（例如<a href="https://www.yubico.com/"target="_blank">YubiKey</a>）来避免密码泄漏和钓鱼攻击。</p>
+<h2 id="全盘加密">全盘加密</h2>
+<p>让你的笔记本保持全盘加密状态可以在你电脑丢失的情况下也保护你的数据。在Linux下你可以使用<a href="https://wiki.archlinux.org/index.php/Dm-crypt/Encrypting_a_non-root_file_system"target="_blank">cryptsetup + LUKS</a>，Window可以使用<a href="https://fossbytes.com/enable-full-disk-encryption-windows-10/"target="_blank">Bitlocker</a>，MacOS可以用<a href="https://support.apple.com/en-us/HT204837"target="_blank">FileVault</a>。它们使用了对称密钥加密全盘，并用密码短语保护它们。</p>
+<h2 id="私人信息">私人信息</h2>
+<p>用Signal或者Keybase。Telegram也行。都是使用了非对称的加密系统。前两者还支持外带公钥交换之类的高级安全功能。</p>
+<h2 id="ssh">SSH</h2>
+<p>在之前的命令行工具课程中就已经介绍了如何用密钥来进行SSH连接。这里我们从密码学角度再来审视一遍。</p>
+<p>当你运行<code>ssh-keygen</code>，它生成了一个非对称密钥对，<code>public_key</code>和<code>private_key</code>。这些都是通过操作系统提供的熵随机生成的。公钥可以随便存，反正它是要被公开的；但私钥你应该加密之后再存在硬盘上。<code>ssh-keygen</code>提示用户使用密码短语，这个会被喂到KDF里去生成密钥，被用来作为对称密码加密私钥。</p>
+<p>在使用中，一旦服务器知道了客户端的公钥（被保存在<code>.ssh/authorized_keys</code>文件），一个正在尝试连接的客户端可以使用非对称签名提供它的身份证明。这是通过<a href="https://en.wikipedia.org/wiki/Challenge%E2%80%93response_authentication"target="_blank">challenge-response</a>完成的。从更高的角度来看，服务器选一个随机数然后发送给客户端，客户端对这个消息进行签名并传送回服务器，然后服务器看看这个签名是否可以用已经保存过的公钥认证。这样可以高效的认证客户端是否拥有对应公钥的私钥，所以服务器可以让客户端登录。</p>
+<h1 id="资源">资源</h1>
+<ul>
+<li><a href="https://missing.csail.mit.edu/2019/security/"target="_blank">2019年本课程的note</a>，从作为一个计算机使用者的隐私保护与安全性的角度来讲解的这一课</li>
+<li><a href="https://latacora.micro.blog/2018/04/03/cryptographic-right-answers.html"target="_blank">密码学问答</a>，回答了一些常见的密码学问题</li>
+</ul></article><section class="article labels"><a class="tag" href=/tags/missing-semester/>Missing Semester</a><a class="tag" href=/tags/notes/>notes</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/missing-semester-notes-09/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Potpourri</a></p><p><a class="link" href="/posts/missing-semester-notes-07/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Metaprogramming</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

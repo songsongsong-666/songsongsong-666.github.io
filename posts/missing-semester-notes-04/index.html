@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Missing Semester Notes - Command-line Environment&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Missing Semester Notes - Command-line Environment" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Missing Semester Notes - Command-line Environment</h1><p class="article date">2020-05-20</p></section><article class="article markdown-body"><p>继续介绍提升shell下工作效率的方法。我们之前都集中于如何执行各种命令，这节课我们将看到如何同时运行多个进程并跟踪他们的状态。我们也会学几个命令和方法，通过别名和配置文件的形式。这些都能帮助你节省时间。比如在你的所有机器上部署一样的配置文件而避免冗长的命令。你将看到怎么通过SSH使用远程机器。</p>
+<p>原文链接：https://missing.csail.mit.edu/2020/command-line/</p>
+<h1 id="任务控制">任务控制</h1>
+<p>在一些情况下你需要打断正在执行的任务，比如你跑了一个命令之后发现一时半会儿跑不完（find发现不知道还要等多久才能结束）。这时候你可能会直接<code>C-c</code>掐掉任务了。这是怎么做到的，而为何有时候任务掐不掉呢？</p>
+<h2 id="杀掉一个进程">杀掉一个进程</h2>
+<p>你的Shell正在用一种叫“信号”的UNIX通信机制域进程交换信息。当进程收到一个信号后它会停止它的执行，处理信号并根据其做出相应改变。因为这个原因，信号是一种软中断。</p>
+<p>在上述例子中，当按下<code>C-c</code>时，命令行会送一个<code>SIGINT</code>信号给进程。</p>
+<p>这里有个最简单的用Python写的例子来捕获且忽略<code>SIGINT</code>信号。要终止这个进程需要通过<code>C-\</code>发送<code>SIGQUIT</code>信号。</p>
+<div class="highlight"><pre class="chroma"><code class="language-python" data-lang="python"><span class="ch">#!/usr/bin/env python</span>
+<span class="kn">import</span> <span class="nn">signal</span><span class="o">,</span> <span class="nn">time</span>
+
+<span class="k">def</span> <span class="nf">handler</span><span class="p">(</span><span class="n">signum</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&#34;</span><span class="se">\n</span><span class="s2">I got a SIGINT, but I am not stopping&#34;</span><span class="p">)</span>
+
+<span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">handler</span><span class="p">)</span>
+<span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="o">.</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&#34;</span><span class="se">\r</span><span class="s2">{}&#34;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">end</span><span class="o">=</span><span class="s2">&#34;&#34;</span><span class="p">)</span>
+    <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+</code></pre></div><p>如下是两次<code>SIGINT</code>与一次<code>SIGQUIT</code>的结果，注意<code>^</code>是<code>Ctrl</code>在终端中的显示符号。</p>
+<pre><code>$ python sigint.py
+24^C
+I got a SIGINT, but I am not stopping
+26^C
+I got a SIGINT, but I am not stopping
+30^\[1]    39913 quit       python sigint.py
+</code></pre><p>虽然<code>SIGINT</code>与<code>SIGQUIT</code>都是有关命令请求的，而一个更加普遍的要求进程退出的是<code>SIGTERM</code>信号。为了发送这个信号我们可以使用<code>kill</code>命令，格式是`kill -TERM <PID>```</p>
+<h2 id="暂停与转入后台进程">暂停与转入后台进程</h2>
+<p>信号能做的事情不只是杀掉进程。比如，<code>SIGSTOP</code>能暂停的一个进程。在命令行中，<code>C-z</code>将会使Shell发送一个<code>SIGTSTP</code>信号，short for Terminal Stop（也就是命令行版本的<code>SIGSTOP</code>）。</p>
+<p>我们可以继续在前台或后台执行暂停的任务，使用<code>fg</code>或者<code>bg</code>。</p>
+<p><code>jobs</code>命令可以列举出与当前命令行有关的所有未完成的任务。你可以使用他们的pid引用它们（或是用<code>pgrep</code>找出它们）。更直观的，你可以用百分号后跟任务号（<code>jobs</code>中会显示）来引用任务。引用最后一次的后台任务可以使用特殊参数<code>$!</code>。</p>
+<p>另一件需要知道的事就是<code>&amp;</code>后缀命令可以将整条命令运行在后台中（虽然它还是会继续用你当前的STDOUT，有点烦人）。</p>
+<p>对于一个已经在执行的任务，<code>C-z</code>然后<code>bg</code>可以把它扔到后台去执行。需要注意，这样的后台进程仍然是你Shell的子进程，如果你关了Shell还是会被关掉（这回发出另一个信号<code>SIGHUP</code>）。为了避免这个事情的发生，你可以使用<a href="http://man7.org/linux/man-pages/man1/nohup.1.html"target="_blank">nohup</a>（一个忽略<code>SIGHUP</code>的包装）跑你的命令，或者用<code>disown</code>在进程已经在运行的情况下。你也可以用下一节介绍的终端复用器来作为替代。</p>
+<p>下面是这些命令的例子</p>
+<pre><code>$ sleep 1000
+^Z
+[1]  + 18653 suspended  sleep 1000
+
+$ nohup sleep 2000 &amp;
+[2] 18745
+appending output to nohup.out
+
+$ jobs
+[1]  + suspended  sleep 1000
+[2]  - running    nohup sleep 2000
+
+$ bg %1
+[1]  - 18653 continued  sleep 1000
+
+$ jobs
+[1]  - running    sleep 1000
+[2]  + running    nohup sleep 2000
+
+$ kill -STOP %1
+[1]  + 18653 suspended (signal)  sleep 1000
+
+$ jobs
+[1]  + suspended (signal)  sleep 1000
+[2]  - running    nohup sleep 2000
+
+$ kill -SIGHUP %1
+[1]  + 18653 hangup     sleep 1000
+
+$ jobs
+[2]  + running    nohup sleep 2000
+
+$ kill -SIGHUP %2
+
+$ jobs
+[2]  + running    nohup sleep 2000
+
+$ kill %2
+[2]  + 18745 terminated  nohup sleep 2000
+
+$ jobs
+</code></pre><p><code>SIGKILL</code>是特别的信号，因为它不能被进程捕获且总是直接立即终止进程。它会产生比较严重的副作用比如产生孤儿进程。</p>
+<p>你可以在<a href="https://en.wikipedia.org/wiki/Signal_%28IPC%29"target="_blank">这篇文章</a>中详细了解信号，或者<code>man signal</code>或者<code>kill -t</code></p>
+<h1 id="终端复用器">终端复用器</h1>
+<p>当你在用命令行界面的时候总是想同时做不止一件事。比如你可能想在用编辑器的同时跑程序。虽然你可以开多个窗口，但用复用器会更时尚。</p>
+<p>例如<code>tmux</code>允许你在使用网格和分页在一个窗口中复用多个终端，这样你可以与多个Shell会话交互。进一步，多路复用器可以让你的命令行会话与窗口脱钩，并在之后的某个需要用的时刻重新附加到窗口上。这点在你使用远程终端的时候不需要用<code>nohup</code>与类似的东西。</p>
+<p>最流行的复用器是<code>tmux</code>，这是一个高度可配置且支持大量快捷键的复用器。它的热键是<code>C-b</code> + <code>x</code>，先用Ctrl+b进入命令等待，再键入命令。</p>
+<p><code>tmux</code>对象有如下的层次：</p>
+<ul>
+<li>会话 - 一个有着一个或多个窗口的独立工作区
+<ul>
+<li><code>tmux</code> 开启一个新的会话</li>
+<li><code>tmux new -s NAME</code> 开启一个名为NAME的新会话</li>
+<li><code>tmux ls</code> 列出当前会话</li>
+<li>在会话中<code>&lt;C-b&gt; d</code>可以脱钩当前会话</li>
+<li><code>tmux a</code> 附加到上一次会话中，可以用<code>-t</code>指定会话</li>
+</ul>
+</li>
+<li>窗口 - 等价于浏览器中的分页，他们是同一会话中视觉上的分离部分
+<ul>
+<li><code>&lt;C-b&gt; c</code> 创建新的窗口。关闭它只需要<code>&lt;C-d&gt;</code></li>
+<li><code>&lt;C-b&gt; N</code> 去第N号窗口，注意到这里的N是数字</li>
+<li><code>&lt;C-b&gt; p</code> 去前一个窗口</li>
+<li><code>&lt;C-b&gt; n</code> 去下一个窗口</li>
+<li><code>&lt;C-b&gt; ,</code> 重命名当前窗口</li>
+<li><code>&lt;C-b&gt; w</code> 列出现有的窗口</li>
+</ul>
+</li>
+<li>格子 - 例如Vim中的分页，让你在同一个显示器页面中显示多个shell
+<ul>
+<li><code>&lt;C-b&gt; &quot;</code> 水平分割当前格子</li>
+<li><code>&lt;C-b&gt; %</code> 垂直分割当前格子</li>
+<li><code>&lt;C-b&gt; &lt;direction&gt;</code> 按方向移动到下一个格子</li>
+<li><code>&lt;C-b&gt; z</code> 对当前格子进行放缩</li>
+<li><code>&lt;C-b&gt; [</code> 开始回滚。按空格开始选择，按回车复制选择</li>
+<li><code>&lt;C-b&gt; &lt;space&gt;</code> 循环切换格子</li>
+</ul>
+</li>
+</ul>
+<p>更多的命令看<a href="https://www.hamvocke.com/blog/a-quick-and-easy-guide-to-tmux/"target="_blank">这个</a>快速指南，<a href="http://linuxcommand.org/lc3_adv_termmux.php"target="_blank">这个</a>有更多细节包括原始的<code>screen</code>命令。你可以试试熟悉一下<code>screen</code>毕竟在UNIX机器上它更广泛。</p>
+<h1 id="别名">别名</h1>
+<p>打老长的一串命令太无聊了。所以许多Shell支持别名（aliasing）。一个shell的别名是另一个命令的短名称，并会被自动替换。在bash中别名长这样：</p>
+<pre><code>alias alias_name=&quot;command_to_alias arg1 arg2&quot;
+</code></pre><p>主要到等于号前后都没有空格，因为<code>alias</code>是一个Shell中的单参数的命令</p>
+<p>别名有许多方便的特性：</p>
+<pre><code># Make shorthands for common flags
+alias ll=&quot;ls -lh&quot;
+
+# Save a lot of typing for common commands
+alias gs=&quot;git status&quot;
+alias gc=&quot;git commit&quot;
+alias v=&quot;vim&quot;
+
+# Save you from mistyping
+alias sl=ls
+
+# Overwrite existing commands for better defaults
+alias mv=&quot;mv -i&quot;           # -i prompts before overwrite
+alias mkdir=&quot;mkdir -p&quot;     # -p make parent dirs as needed
+alias df=&quot;df -h&quot;           # -h prints human readable format
+
+# Alias can be composed
+alias la=&quot;ls -A&quot;
+alias lla=&quot;la -l&quot;
+
+# To ignore an alias run it prepended with \
+\ls
+# Or disable an alias altogether with unalias
+unalias la
+
+# To get an alias definition just call it with alias
+alias ll
+# Will print ll='ls -lh'
+</code></pre><p>需要注意的是别名默认不会被会话持久化，所以你需要写入文件中，比如<code>.bashrc</code>或<code>.zshrc</code>，我们下一节会介绍</p>
+<h1 id="dot文件">Dot文件</h1>
+<p>许多文件的配置都以纯文本形式存储在Dot文件中，因为以<code>.</code>开头的文件会在默认的<code>ls</code>中被隐藏，例如<code>.vimrc</code></p>
+<p>Shell也是这样的，在启动的时候，你的Shell将会从许多文件中读取它的配置。不同的Shell在登录或者交互时都是非常复杂的。关于这个问题，<a href="https://blog.flowblok.id.au/2013-02/shell-startup-scripts.html"target="_blank">这里</a>有一篇非常好的文章。</p>
+<p>对<code>bash</code>来说，编辑<code>.bashrc</code>或<code>.bash_profile</code>在绝大多数系统上都适用。这里你可以包含你想在启动时运行的命令，例如别名或者<code>PATH</code>环境变量。事实上，许多程序会要求你在Shell中用<code>export PATH=&quot;$PATH:/path/to/program/bin&quot;</code>这种命令来保证它们的二进制文件能被找到。</p>
+<p>其他的一些用Dot文件配置的例子</p>
+<ul>
+<li><code>bash</code> - <code>~/.bashrc</code>, <code>~/.bash_profile</code></li>
+<li><code>git</code> - <code>~/.gitconfig</code></li>
+<li><code>vim</code> - <code>~/.vimrc</code> 与 <code>~/.vim</code>文件夹</li>
+<li><code>ssh</code> - <code>~/.ssh/config</code></li>
+<li><code>tmux</code> - <code>~/.tmux.conf</code></li>
+</ul>
+<p>你要如何组织你的Dot文件呢？它们应该老老实实呆在自己的文件夹下并处于版本控制管理中，再使用符号链接放到它们该出现的位置。这样的话有如下好处：</p>
+<ul>
+<li><strong>方便安装</strong>：如果你到新机器上，只需要花几分钟便可以得到原配置</li>
+<li><strong>便携</strong>：你的工具可以在任何地方都以同样的方式运行</li>
+<li><strong>同步性</strong>：你可以在任意一处更新你的文件并在所有地方保持同步</li>
+<li><strong>跟踪变化</strong>：你可能需要在你整个程序员生涯中维护只属于你自己的Dot文件，所以版本历史对于长期项目是非常关键的</li>
+</ul>
+<p>怎么写Dot文件？根据不同工具的文档或者man页面。另一种方法就是看看别人blog上的配置文件。你可以在github上找到一吨的<a href="https://github.com/search?o=desc&amp;q=dotfiles&amp;s=stars&amp;type=Repositories"target="_blank">Dot文件仓库</a>，最流行的是<a href="https://github.com/mathiasbynens/dotfiles"target="_blank">这个</a> （只是提醒你不要瞎逼拷别人的配置），<a href="https://dotfiles.github.io/"target="_blank">这里</a>是个对于这个主题来说非常好的资源。</p>
+<h2 id="便携性">便携性</h2>
+<p>一个痛点是Dot文件可能在几个机器之间不能通用。比如不同的操作系统或不同的Shell。也有的时候你只想单独给一台机器配置一些特别的东西。</p>
+<p>这有一些技巧。如果配置文件支持的话，用等号或者if条件去写特殊机器的配置。比如你的Shell可能会有如下的东西：</p>
+<pre><code>if [[ &quot;$(uname)&quot; == &quot;Linux&quot; ]]; then {do_something}; fi
+
+# Check before using shell-specific features
+if [[ &quot;$SHELL&quot; == &quot;zsh&quot; ]]; then {do_something}; fi
+
+# You can also make it machine-specific
+if [[ &quot;$(hostname)&quot; == &quot;myServer&quot; ]]; then {do_something}; fi
+</code></pre><p>如果配置文件支持的话，可以搞一下includes，例如<code>~/.gitconfig</code>就有如下设置</p>
+<pre><code>[include]
+    path = ~/.gitconfig_local
+</code></pre><p>然后再每一台机器上<code>~/.gitconfig_local</code>可以包含机器独有的设置。你甚至可以为不同种类的机器开不同的库去跟踪它们。</p>
+<p>这样做也方便你让不同的程序共享一份配置。比如你想让<code>bash</code>和<code>zsh</code>共享同样的别名，你可以写一个<code>.aliase</code>然后在两边自己的配置文件中都写如下的内容：</p>
+<pre><code># Test if ~/.aliases exists and source it
+if [ -f ~/.aliases ]; then
+    source ~/.aliases
+fi
+</code></pre><h1 id="远程机器">远程机器</h1>
+<p>现在程序员每天的工作中越来越离不开远程机器了。如果你需要用远程服务器去部署后端或者你需要服务器来进行高性能需求的计算，你将会用到SSH。与大多数工具一样，它是一个高度可配置的东西，所以值得在这里一学。</p>
+<p><code>ssh</code>上别的机器只需要执行类似<code>ssh foo@bar.mit.edu</code>的命令。这条是指以<code>foo</code>的用户名连接<code>bar.mit.edu</code>（当然你也可以用IP）。之后我们可以看到如何使用ssh配置文件使得你只需要执行<code>ssh bar</code>这样的命令。</p>
+<h2 id="执行命令">执行命令</h2>
+<p>一个经常被忽视的特性是<code>ssh</code>是支持直接运行命令的。比如<code>ssh foobar@server ls</code>将会直接在远程端执行<code>ls</code>。这个特性在管道中也适用，所以<code>ssh foobar@server ls | grep PATTERN</code>将会把远程端<code>ls</code>的结果送进本地的<code>grep</code>，而<code>ls | ssh foobar@server grep PATTERN</code>将会把本地<code>ls</code>出来的结果送到远程机器上去<code>grep</code>。</p>
+<h2 id="ssh-密钥">SSH 密钥</h2>
+<p>基于密钥的认证将会利用基于公钥的密码学系统在客户端和服务端进行认证而不用暴露私钥。这就是为什么你可以不用每次都手动输入密码。然而，你的私钥（一般在<code>~/.ssh/id_rsa</code>，最近是<code>~/.ssh/id_ed25519</code>）的效用等价于你的密码，所以，你懂的。</p>
+<h3 id="密钥生成">密钥生成</h3>
+<p>为了生成密钥对你可以用<a href="http://man7.org/linux/man-pages/man1/ssh-keygen.1.html"target="_blank">ssh-keygen</a></p>
+<pre><code>ssh-keygen -o -a 100 -t ed25519 -f ~/.ssh/id_ed25519
+</code></pre><p>你需要选择一个密码短语来避免有人把你的私钥偷走了。用<a href="http://man7.org/linux/man-pages/man1/ssh-agent.1.html"target="_blank">ssh-agent</a>或<a href="https://linux.die.net/man/1/gpg-agent"target="_blank">gpg-agent</a>来避免你每次都要输入密码短语。</p>
+<p>如果你的密钥已经用来推github库了，你需要参考下<a href="https://help.github.com/articles/connecting-to-github-with-ssh/"target="_blank">这里</a>。为了验证你的密码短语，你可以跑一下<code>ssh-keygen -y -f /path/to/key</code></p>
+<h3 id="基于密钥的认证">基于密钥的认证</h3>
+<p><code>ssh</code>会看<code>.ssh/authorized_keys</code>去判断哪个客户端的连接可以放进来。把你的公钥拷出去可以用</p>
+<pre><code>cat .ssh/id_ed25519.pub | ssh foobar@remote 'cat &gt;&gt; ~/.ssh/authorized_keys'
+</code></pre><p>一种简单的解决方案是</p>
+<pre><code>ssh-copy-id -i .ssh/id_ed25519.pub foobar@remote
+</code></pre><h2 id="用ssh拷贝文件">用SSH拷贝文件</h2>
+<p>有许多方法可以通过SSH拷贝文件</p>
+<ul>
+<li><code>ssh+tee</code>，最简单的就是用STDIN和管道来传输文件<code>cat localfile | ssh remote_server tee serverfile</code>。<a href="http://man7.org/linux/man-pages/man1/tee.1.html"target="_blank">tee</a>是一个把STDIN输出到文件的东西</li>
+<li><code>scp</code>当要拷贝文件夹或者大量文件的时候，<code>scp</code>是一种安全又便捷的方法，它能够很简单的传输你的文件夹。语法是<code>scp path/to/local_file remote_host:path/to/remote_file</code></li>
+<li><code>rsync</code>是一种<code>scp</code>的升级，可以探测到本地与远程文件中的异同避免重复拷贝。它对符号链接、权限有着更细粒度控制，例如带<code>--partial</code>标志的文件
+可以从之前中断的传输中回复。<code>rsync</code>有着与<code>scp</code>非常相似的语法。</li>
+</ul>
+<h2 id="端口转发">端口转发</h2>
+<p>在许多场景下，你需要跑软件并监听特定的端口。当在本机跑这种软件的时候，直接输入<code>localhost:PORT</code>或者<code>127.0.0.1:PORT</code>，但如果你在远程机器上跑这种软件的时候要怎么办呢？</p>
+<p>这里就要用到端口转发的特性了。有两种转发，一种是本地转发，一种是远程转发（也就是正向和反向都支持，原文有图，这里不赘述），<a href="https://unix.stackexchange.com/questions/115897/whats-ssh-port-forwarding-and-whats-the-difference-between-ssh-local-and-remot"target="_blank">这里</a>有篇文章介绍这个。</p>
+<p>本地转发最长用的场景就是，你在远程机器上跑了一个服务，你想通过访问本地端口来访问它。如例如，你跑了个<code>jupyter notebook</code>在远程机器上并监听了<code>8888</code>端口，然后你希望通过访问本地<code>9999</code>端口来访问这个远程端口。那么命令就是<code>ssh -L 9999:localhost:8888 foobar@remote_server</code>然后使用<code>localhost:9999</code>来访问就完事了。</p>
+<h2 id="ssh配置文件">SSH配置文件</h2>
+<p>以上看来连接一个服务器可能要打老长一串命令。所以创建别名是非常有必要的。</p>
+<pre><code>alias my_server=&quot;ssh -i ~/.id_ed25519 --port 2222 -L 9999:localhost:8888 foobar@remote_server
+</code></pre><p>然而，有一个更好的替代就是直接使用SSH配置文件</p>
+<pre><code>Host vm
+    User foobar
+    HostName 172.16.174.141
+    Port 2222
+    IdentityFile ~/.ssh/id_ed25519
+    LocalForward 9999 localhost:8888
+
+# Configs can also take wildcards
+Host *.mit.edu
+    User foobaz
+</code></pre><p>配置文件的另一个优势是通过<code>~/.ssh/config</code>文件而不是别名，所以这让其他的程序例如<code>scp</code>,<code>rsync</code>,<code>mosh</code>等也可以读取这个配置然后转换成自己的配置。</p>
+<p>注意到这个文件<code>~/.ssh/config</code>可以被认为是一个Dot文件，一般来说也可以和你自己的Dot文件库放在一起。然而，如果你的Dot文件库是公开的，你的ip和配置啥的就漏了，怕不是要被人D出屎来。</p>
+<p>SSH服务器的配置文件在<code>/etc/ssh/sshd_config</code>，你可以在这里搞些事情，比如关掉密码登录（只留下key登录），改变ssh端口，打开X11转发等等。你可以对每个用户做出不同的配置。</p>
+<h3 id="一个小点">一个小点</h3>
+<p>一个常见的痛点时当你连上一个远程机器之后，你会因为关机或者睡眠什么的掉线。另外，如果SSH连接有很大的延迟的话也是贼tm烦人的。<a href="https://mosh.org/"target="_blank">Mosh</a>是一个移动端的shell，允许漫游连接，并提供智能的本地输出。</p>
+<h1 id="shells-与框架">Shells 与框架</h1>
+<p><code>bash</code>实在是用的太广泛的，而且它是大部分系统的默认框架。然而它不是唯一的选择。例如<code>zsh</code>就是<code>bash</code>的一个超集并提供了很多开箱即用的特性</p>
+<ul>
+<li>更加聪明的文件名代换，<code>**</code></li>
+<li>内联匹配/通配符展开</li>
+<li>拼写校正</li>
+<li>更好的tab补全与选择</li>
+<li>路径展开（<code>cd /u/lo/b</code>会被展开成<code>cd /usr/local/bin</code>）</li>
+</ul>
+<p>框架（Frameworks）可以提升你的Shell使用体验。一些流行的框架比如<a href="https://github.com/sorin-ionescu/prezto"target="_blank">prezto</a>或<a href="https://ohmyz.sh/"target="_blank">oh-my-zsh</a>，还有一些专门针对特定功能的比如<a href="https://github.com/zsh-users/zsh-syntax-highlighting"target="_blank">zsh-syntax-highlighting</a>或<a href="https://github.com/zsh-users/zsh-history-substring-search"target="_blank">zsh-history-substring-search</a>。例如<a href="https://fishshell.com/"target="_blank">fish</a>这样的Shell就默认包含了很多用户友好的特性。比如说：</p>
+<ul>
+<li>正确的提示</li>
+<li>命令行语法高亮</li>
+<li>历史命令字串搜索</li>
+<li>基于man页面的flag补全</li>
+<li>更智能的自动命令补全</li>
+<li>提升了主题</li>
+</ul>
+<p>不过用这些框架可能会让你的Shell变慢一些，尤其是在它们没有被优化好的时候。你可以把你不需要的特性关掉来提速。</p>
+<h1 id="终端模拟器">终端模拟器</h1>
+<p>你值得花点时间来研究就要配置出什么命令行，毕竟你要天天用。有许多<a href="https://anarc.at/blog/2018-04-12-terminal-emulators-1/"target="_blank">模拟器</a>能帮你。</p>
+<p>有如下这些地方你值得花时间配置好：</p>
+<ul>
+<li>字体</li>
+<li>配色</li>
+<li>键盘快捷键</li>
+<li>分页支持</li>
+<li>滚屏配置</li>
+<li>性能（有些命令行支持GPU加速）</li>
+</ul></article><section class="article labels"><a class="tag" href=/tags/missing-semester/>Missing Semester</a><a class="tag" href=/tags/notes/>notes</a><a class="tag" href=/tags/shell/>shell</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/missing-semester-notes-05/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Version Control (git)</a></p><p><a class="link" href="/posts/missing-semester-notes-03/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Data Wrangling</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

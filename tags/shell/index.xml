@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>shell on 松松的Blog</title>
+    <link>/tags/shell/</link>
+    <description>Recent content in shell on 松松的Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <copyright>2020 Song.</copyright>
+    <lastBuildDate>Wed, 20 May 2020 20:37:58 +0800</lastBuildDate>
+    
+        <atom:link href="/tags/shell/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Missing Semester Notes - Command-line Environment</title>
+      <link>/posts/missing-semester-notes-04/</link>
+      <pubDate>Wed, 20 May 2020 20:37:58 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-04/</guid>
+      <description>&lt;p&gt;继续介绍提升shell下工作效率的方法。我们之前都集中于如何执行各种命令，这节课我们将看到如何同时运行多个进程并跟踪他们的状态。我们也会学几个命令和方法，通过别名和配置文件的形式。这些都能帮助你节省时间。比如在你的所有机器上部署一样的配置文件而避免冗长的命令。你将看到怎么通过SSH使用远程机器。&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Data Wrangling</title>
+      <link>/posts/missing-semester-notes-03/</link>
+      <pubDate>Sat, 16 May 2020 15:23:13 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-03/</guid>
+      <description>&lt;p&gt;数据整理&lt;/p&gt;</description>
+      
+    </item>
+    
+  </channel>
+</rss>

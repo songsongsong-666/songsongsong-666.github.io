@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Missing Semester Notes - Potpourri&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Missing Semester Notes - Potpourri" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Missing Semester Notes - Potpourri</h1><p class="article date">2020-06-13</p></section><article class="article markdown-body"><p>大杂烩 最后介绍一些概念</p>
+<p>原文链接； <a href="https://missing.csail.mit.edu/2020/potpourri/">https://missing.csail.mit.edu/2020/potpourri/</a></p>
+<h1 id="键盘键位映射">键盘键位映射</h1>
+<p>作为程序员，你的键盘是你的主要输入方式。就像你计算机里的许多事情一样，它是可配置的。</p>
+<p>最基本的改变就是做键位映射，常见的例子：</p>
+<ul>
+<li>把大小写切换映射到Ctrl或者Escape里。这个是比较推荐的映射，毕竟这个键在键盘上基本就是个废物键，但占了个重要的位置</li>
+<li>把截屏键映射到播放和暂停音乐键上</li>
+<li>把Ctrl和Win或者Cmd键互换（这个就不解释了）</li>
+</ul>
+<p>也有人把键映射成了常用命令：</p>
+<ul>
+<li>打开新命令行或者新窗口</li>
+<li>插入特定的文本，比如你的邮箱或者ID</li>
+<li>让电脑或者显示器休眠</li>
+</ul>
+<p>或者一些高级的操作：</p>
+<ul>
+<li>连按五次Shift触发大小写切换</li>
+<li>长按和短按代表不同的功能</li>
+<li>根据不同的</li>
+</ul>
+<p>一些软件可以做到这样的效果：</p>
+<ul>
+<li>macOS - karabiner-elements, skhd or BetterTouchTool</li>
+<li>Linux - xmodmap or Autokey</li>
+<li>Windows - Builtin in Control Panel, AutoHotkey or SharpKeys</li>
+<li>QMK - If your keyboard supports custom firmware you can use QMK to configure the hardware device itself so the remaps works for any machine you use the keyboard with.</li>
+</ul>
+<h1 id="守护进程">守护进程</h1>
+<p>你可能已经很熟悉这些玩意了，即使听起来像个新鲜事。大多数电脑都在运行着一系列后台程序，并等待着用户翻它们的牌子。这些程序被叫做守护进程并经常用<code>d</code>指明类型。例如<code>sshd</code>，是ssh的守护进程，是个负责监听并回应收到的SSH请求并检查远程用户是否可以登录的程序。</p>
+<p>在Linux中，<code>systemd</code>（系统守护）是最常见的设置并运行守护进程的解决方案。你可以跑个<code>systemctl status</code>列出当前系统中运行的守护进程。它们中的大多数可能都听起来很陌生，但是负责这系统中的一个核心模块，例如网络，图形等。Systemd可以被使用<code>systemctl</code>命令行交互，例如一些命令<code>enable</code>，<code>disable</code>，<code>start</code>，<code>stop</code>，<code>restart</code>或者<code>status</code>。</p>
+<p>更有趣的是，<code>systemd</code>有一个非常易于使用的配置界面用来设置新的守护进程。下面就是把一个Python App设置为守护进程的例子；</p>
+<pre><code># /etc/systemd/system/myapp.service
+[Unit]
+Description=My Custom App
+After=network.target
+
+[Service]
+User=foo
+Group=foo
+WorkingDirectory=/home/foo/projects/mydaemon
+ExecStart=/usr/bin/local/python3.7 app.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+</code></pre><p>还有，如果你只是想按照一定的频率运行你的程序，你不需要使用守护进程，而是用<a href="https://www.man7.org/linux/man-pages/man8/cron.8.html"target="_blank">cron</a>，一个用来做定时任务的系统工具。</p>
+<h1 id="fuse">FUSE</h1>
+<p>现代操作系统基本上是多个可单独编译的小模块的组合。你的操作系统使用了不同的文件系统后端因为有一个能跨文件系统的通用语言。例如，当你运行<code>touch</code>创建文件的时候，它会使用一个系统调用去内核中，内核让文件系统创建一个给定的文件。需要注意的是，UNIX文件系统是传统的作为内核模块实现的，并仅允许内核进行文件系统的调用。</p>
+<p><a href="https://en.wikipedia.org/wiki/Filesystem_in_Userspace"target="_blank">FUSE</a>允许用户态程序实现文件系统。FUSE让用户空间的代码可以相应文件系统调用，并于内核界面桥接。在实践中，这意味着用户可以实现任何文件系统调用。</p>
+<p>例如，你可以用一个虚拟的文件系统，把你的所有操作都映射到SSH上。这样本地的程序就可以看见远程机器上的文件了。这就是<code>sshfs</code>做的事。</p>
+<p>一些使用了FUSE的文件系统：</p>
+<ul>
+<li><a href="https://github.com/libfuse/sshfs"target="_blank">sshfs</a> - 透过SSH链接的远程文件系统</li>
+<li><a href="https://rclone.org/commands/rclone_mount/"target="_blank">rclone</a> - 挂载各类云盘</li>
+<li><a href="https://nuetzlich.net/gocryptfs/"target="_blank">gocryptfs</a> - 加密层系统，在挂载层面是无加密的，在存储层面是加密的内容</li>
+<li><a href="https://keybase.io/docs/kbfs"target="_blank">kbfs</a> - 端到端加密的分布式文件系统，你可以有私有、分享或公开的文件夹</li>
+<li><a href="https://borgbackup.readthedocs.io/en/stable/usage/mount.html"target="_blank">borgbackup</a> - 挂载你去重、压缩并加密的备份数据以便浏览</li>
+</ul>
+<h1 id="备份">备份</h1>
+<p>任何你没有备份过的数据都可能在任意一个时刻永远的离你而去。拷贝到另一个地方去是很简单的，而真正可信的备份是困难的。下面介绍一些备份的基础知识和常见陷阱。</p>
+<p>首先，在同一个物理磁盘内存数据的副本是没有任何备份意义的，因为盘子挂了全都白给。类似的，在家里搞一块备份硬盘也只是一种弱备份，因为还是有火灾地震等不可控因素。所以实践中一般使用异地备份。</p>
+<p>同步盘解决方案也不是真正的备份。例如，Dropbox和GDrive是一个方便的解决方案，但当你数据被擦掉或者被覆盖的时候，本地的改变会被同步到远端。出于相同的原因，像RAID一样的阵列也不能算是备份。它们在数据被删除覆盖或者加密时也无能为力。</p>
+<p>一个好的备份方案有如下的特性：版本化，去重且安全。版本性保证了你可以访问文件的更改历史并从任意修改中恢复过来。去重则可以让你能够快速的增量备份，减少存储压力。至于安全性，你要保证别人删掉你自己的数据的时候没办法一起删掉你的备份。最后，盲目的相信备份是不好的，你得不定时的检查一下你的备份是否能被恢复。</p>
+<p>备份不止是你计算机上的本地文件。鉴于web应用的快速增长，大量的数据被存储在云上。例如你的email，社交媒体上的照片，音乐列表等，如果你账户没了都白给了。你可以找一些工具做一份离线备份。</p>
+<p>更多的内容，见2019年的课程笔记<a href="https://missing.csail.mit.edu/2019/backups"target="_blank">Backups</a></p>
+<h1 id="apis">APIs</h1>
+<p>我们在这节课上介绍了大量如何高效使用本地计算机的方法，但你将会发现这课已经延申到了网络。例如，美国政府有一个获取天气预报的API能让你方便的在Shell中取得天气预报。</p>
+<p>大多数API都有相似的格式：它们是结构化的URL，并常常以<code>api.service.com</code>作为根域名，而后跟上请求路径和参数。在美国政府的天气预报API中，你需要发起一个GET请求（用<code>curl</code>就行了）去<code>https://api.weather.gov/points/42.3604,-71.094</code>就行了。一般来说请求返回JSON格式化的数据，你可以用<a href="https://stedolan.github.io/jq/"target="_blank">jq</a>这样的工具去处理。</p>
+<p>一些API需要鉴权后才能使用，这类API常常会要求你在请求中附带一些形式的<em>token</em>，你需要去读具体API的文档。但是<a href="https://www.oauth.com/"target="_blank">OAuth</a>是一个你会经常看到的协议。从本质来讲，OAuth是一种对于给定服务授予你一个可以表明你身份的Token的东西。记住这个东西你需要保护好，任何持有这个token的人都可以作为你对你的账户进行操作。</p>
+<p><a href="https://ifttt.com/"target="_blank">IFTTT</a>一个围绕API理念展开服务的网站，它使用API整合了一大堆服务，让你能够构造调用链。</p>
+<h1 id="常见命令行参数和模式">常见命令行参数和模式</h1>
+<p>各个软件都不一样，你需要经常用<code>man</code>去看看具体用法。但它们常常用使用一个模式，所以有些东西你最好知道：</p>
+<ul>
+<li>大部分工具都支持<code>--help</code>显示简要的帮助</li>
+<li>大部分会造成不可逆改变的工具都提供了&quot;dry run&quot;功能，能显示出它<em>本应该做的事情</em>但不真正去做。类似的，有些会提供&quot;interactive&quot;让你能够交互式的选择。</li>
+<li>你可以经常使用<code>--version</code>或<code>-V</code>查看版本</li>
+<li>几乎所有程序都支持<code>--verbose</code>或<code>-v</code>产生更多的输出。你可以用类似<code>-vvv</code>去得到更更更多的输出（一般来说就是改变了log输出的等级）。类似的，<code>--quite</code>常常能关闭输出。</li>
+<li>在许多工具中，<code>-</code>放在文件名处表示使用标准输入输出</li>
+<li>有些工具不默认递归，例如<code>rm</code>，这时候用<code>-r</code>表示递归执行。</li>
+<li>有时候你想穿一些看起来像参数的东西作为参数，例如你想删除一个叫<code>-r</code>的文件，或者你想通过ssh跑远程文件例如<code>ssh machine foo</code>然后给<code>foo</code>传参数。特殊参数<code>--</code>使得程序停止将命令行处理成当前程序的参数，这样可以让你把之后的东西按照文本传递下去。例如<code>rm -- -r</code>，<code>ssh machine --for-ssh -- foo --for-foo</code></li>
+</ul>
+<h1 id="窗口管理">窗口管理</h1>
+<p>你们应该已经习惯了用拖拽的方式管理窗口，就像Win，MacOS默认支持得那样。这些窗口就像被挂在屏幕上，你可以拖动它们，改变他们的大小，让一些覆盖在另一些上面。然而这仅仅是一种窗口管理的方式，被称作“悬浮”式窗口管理。还有别的，例如在Linux中，一种常见的替代则是“平铺”式窗口管理。在平铺式窗口管理中，窗口从来不会被覆盖，而是被以某种排列平铺在屏幕上，就像tmux的分栏平面一样。在平铺式窗口管理中，屏幕总是会被打开的窗口依照某种布局填满。如果只有一个窗口，它会覆盖整个屏幕；如果打开另一个，现有的窗口会收缩（例如1/3或2/3）。如果你打开第三个，其他的窗口会继续收缩到配合新窗口打开。就像tmux中的分栏平面一样，你可以用键盘在这些窗口中切换或者改变大小而不需要碰鼠标。你要是有想法的话可以研究研究。</p>
+<h1 id="vpn">VPN</h1>
+<p>（并不认为把这节翻译成中文会有意义）
+可以注意一下WireGuard这个最新的VPN协议，已经被合并入Linux内核</p>
+<h1 id="markdown">Markdown</h1>
+<p>很有用的标记语言，写起来很简单。可以看看<a href="https://commonmark.org/help/"target="_blank">Markdown</a></p>
+<h1 id="other-topics">Other topics</h1>
+<p>（由于文中提到了一些概念，这里仅进行罗列）</p>
+<ul>
+<li>按键精灵</li>
+<li>Live CD于系统安装启动</li>
+<li>Docker系列</li>
+<li>Notebook编程</li>
+<li>多用Github</li>
+</ul></article><section class="article labels"><a class="tag" href=/tags/missing-semester/>Missing Semester</a><a class="tag" href=/tags/notes/>notes</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/openwrt-map-e-r2s/"><span class="li iconfont icon-article"></span>Openwrt MAP-E 设置小记 (ISP OCN + Device Nanopi-R2S)</a></p><p><a class="link" href="/posts/missing-semester-notes-08/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Security and Cryptography</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

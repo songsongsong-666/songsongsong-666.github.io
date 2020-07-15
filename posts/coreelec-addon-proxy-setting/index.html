@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>CoreELEC中Google Drive插件不全局代理的解决方法&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="CoreELEC中Google Drive插件不全局代理的解决方法" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">CoreELEC中Google Drive插件不全局代理的解决方法</h1><p class="article date">2020-07-15</p></section><article class="article markdown-body"><p>CoreELEC是专用于晶晨SOC的基于KODI定制的Linux发行版，职业高清播放器系统。然而对比桌面版KODI还是有不少坑点，尤其是想要用高性能盒子做all-in-one方案的时候。耗费了数小时才跳出这个代理的大坑。</p>
+<p>现在不少人的Google Drive团队盘里都有几十T的片库，为了让家庭影院物尽其用就有了这次折腾。</p>
+<h1 id="bug描述">Bug描述</h1>
+<p>设备：S922X 盒子</p>
+<p>Repro：在设置好了CoreELEC里的socks5代理之后，Google Drive Add-on在认证账号之后无法获取账号信息。</p>
+<h2 id="背景">背景</h2>
+<p>在插件中心中安装Docker，并运行v2ray代理。</p>
+<h1 id="解决方案">解决方案</h1>
+<h2 id="尝试一失败">尝试一（失败）</h2>
+<p>首先考虑直接在本机运行一个openwrt的docker镜像当软路由用。根据之前N1的经验，<code>kanshudj/n1-openwrtgateway:r20</code>这个docker镜像是在ARM上成功率最高的。一通设置之后代理就是跑不起来，更换了数个openwrt image之后还是报同样的错误。</p>
+<p>然后在github上找到插件报错的源代码，应该是CoreELEC的内核精简导致iptables里功能不全。如果要修复这个问题就需要找到缺失的部分并重新编译CoreELEC。</p>
+<p>没有时间精力，放弃。</p>
+<h2 id="尝试二成功">尝试二（成功）</h2>
+<p>转而研究GD插件的代码，看看为什么插件不会走代理。插件的<a href="https://github.com/cguZZman/plugin.googledrive"target="_blank">Github</a>在此。</p>
+<p>一番研究之后发现这是因为它直接用两个urllib2进行网络访问。本来打算给插件加一个代理配置项，在查询urllib2的代理参数时发现它会默认读取环境变量中的<code>*_PROXY</code>来进行代理设置。于是乎转而研究如何给插件加上环境变量。</p>
+<p>又进行一番研究以后发现在<code>/storage/.kodi/addons/plugin.googledrive</code>下建立<code>profile.d</code>文件夹，里面的所有<code>*.profile</code>都会被拿出来当作shell执行一番。所以在里面设置好代理就完事啦。</p>
+<p>注意v2ray只支持原生http协议，并不支持原生https代理（但并不意味着这种代理模式只能访问http网站）</p></article></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/docker-hub-arm64-automated-build/"><span class="li iconfont icon-article"></span>使用DockerHub自动构建arm架构Image</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

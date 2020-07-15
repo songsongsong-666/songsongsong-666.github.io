@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>使用DockerHub自动构建arm架构Image&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="使用DockerHub自动构建arm架构Image" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">使用DockerHub自动构建arm架构Image</h1><p class="article date">2020-07-09</p></section><article class="article markdown-body"><p>经常有把自己的程序打包到ARM平台上去长期运行的需求，Docker Hub是最方便的选项。一个小trick可以让Docker Hub自动构建非amd64架构的Image。</p>
+<p>现在对Docker Image来说，Docker Hub是最简单的CI构建平台了，只需要登陆上去给Github一个授权，CI就设置完成了。CI用的虚拟机限制是一次Build双核两小时（对大的Image是不太够的，还是Github Action比较靠谱，比如Build OpenWrt），对于自己的小项目是足够了。但是由于是用的虚拟机，运行在amd64下，默认只能生成自己架构的Image。我们需要自动的构建用于我们需要的架构的Image。</p>
+<p>经过一番搜索发现这个需求有很久了，ARM架构下的直接构建现在也已经被写入了Docker的<a href="https://github.com/docker/roadmap/issues/109"target="_blank">RoadMap</a>。现在大家用的解决方案是用<a href="https://github.com/multiarch/qemu-user-static"target="_blank">multiarch/qeum-static</a>在user namespace下跑其他架构的VM。这个方案不仅能让你构建其他架构的Image，还能让你直接运行其他架构的Image（就是有些性能损失，这个没办法）。已经很好了。由于项目Readme里没有说明怎么在Dockerfile里直接用，这里备注一下。而且现在Dockerfile支持多阶段构建，可以把安装依赖、编译等部分扔到其他阶段中，使得最终生成的Image不包含这些中间过程的数据，让Image更加迷你。</p>
+<h1 id="设置build-hook">设置build hook</h1>
+<p>需要在编译前运行<code>multiarch/qemu-user-static:register</code>来准备环境。由于Docker Hub使用虚拟机，并且支持hook脚本，所以可以做到。</p>
+<p>创建<code>hooks/pre_build</code>，内容如下</p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="cp">#!/bin/sh
+</span><span class="cp"></span>docker run --rm --privileged multiarch/qemu-user-static:register --reset
+</code></pre></div><h1 id="设置dockerfile">设置Dockerfile</h1>
+<p>这里直接给出最终Dockerfile例子，注释配有简单说明。每次FROM其他架构的Image都要把模拟器COPY过来<code>COPY --from=qemu /usr/bin/qemu-aarch64-static /usr/bin</code></p>
+<div class="highlight"><pre class="chroma"><code class="language-bash" data-lang="bash"><span class="c1"># Import armv8 parser runtime</span>
+FROM multiarch/qemu-user-static:x86_64-aarch64 as qemu
+
+<span class="c1"># Compile Stage</span>
+FROM arm64v8/python:3-slim AS compile-image
+
+<span class="c1"># Copy qemu</span>
+COPY --from<span class="o">=</span>qemu /usr/bin/qemu-aarch64-static /usr/bin
+
+RUN apt-get update
+RUN apt-get install -y build-essential gcc libffi6 libffi-dev libssl-dev procps
+
+<span class="c1"># Install requirements</span>
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+<span class="c1"># Running Stage</span>
+FROM arm64v8/python:3-slim AS runtime-image
+
+<span class="c1"># Copy qemu</span>
+COPY --from<span class="o">=</span>qemu /usr/bin/qemu-aarch64-static /usr/bin
+
+<span class="c1"># Copy requirements</span>
+COPY --from<span class="o">=</span>compile-image /root/.local /root/.local
+
+<span class="c1"># Make sure scripts in .local are usable:</span>
+ENV <span class="nv">PATH</span><span class="o">=</span>/root/.local/bin:<span class="nv">$PATH</span>
+
+<span class="c1"># Copy application sources</span>
+WORKDIR /app
+COPY . .
+
+<span class="c1"># Run the application, using /bin/sh -c for forward env variable</span>
+CMD <span class="o">[</span> <span class="s2">&#34;/bin/sh&#34;</span>, <span class="s2">&#34;-c&#34;</span>, <span class="s2">&#34;python ./main.py --token=</span><span class="si">${</span><span class="nv">BOT_TOKEN</span><span class="si">}</span><span class="s2"> --chat_id=</span><span class="si">${</span><span class="nv">BOT_CHAT_ID</span><span class="si">}</span><span class="s2"> --from_id=</span><span class="si">${</span><span class="nv">BOT_FROM_ID</span><span class="si">}</span><span class="s2">&#34;</span> <span class="o">]</span>
+</code></pre></div></article><section class="article labels"><a class="tag" href=/tags/docker/>docker</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/coreelec-addon-proxy-setting/"><span class="li iconfont icon-article"></span>CoreELEC中Google Drive插件不全局代理的解决方法</a></p><p><a class="link" href="/posts/openwrt-map-e-r2s/"><span class="li iconfont icon-article"></span>Openwrt MAP-E 设置小记 (ISP OCN + Device Nanopi-R2S)</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

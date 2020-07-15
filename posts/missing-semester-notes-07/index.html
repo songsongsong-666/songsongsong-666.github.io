@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Missing Semester Notes - Metaprogramming&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Missing Semester Notes - Metaprogramming" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Missing Semester Notes - Metaprogramming</h1><p class="article date">2020-05-30</p></section><article class="article markdown-body"><p>我们说的“元编程”是什么意思呢？这是我们能想到的最好的集体名词，用来概述那些有关过程，而不是如何写代码或者更有效的工作的东西。这里我们要来看看那些有关编译与测试、依赖管理的系统。这些看起来与一天天的学生生活没什么关系，但是当你们有一天走进现实世界并要在大型代码库中工作的时候，你会发现它们无处不在。</p>
+<p>元编程还有一个<a href="https://en.wikipedia.org/wiki/Metaprogramming"target="_blank">定义</a>，这个定义和我们这节课中的定义并不同。</p>
+<p>原文链接：https://missing.csail.mit.edu/2020/metaprogramming/</p>
+<h1 id="构建系统">构建系统</h1>
+<p>如果你用LaTeX写论文，你需要运行什么命令来生成它们呢？那些用来跑分绘图并插入到你文章中的东西又是怎么回事呢？对大部分项目来说，无论他们是否包含“代码”，这个过程都可以被认为是一个“构建过程”：从你的输入到输出之间有一系列的操作需要你去做。一般来说这个流程有许多步骤。运行这个东西去绘图，生成结果，并最后构成最终的论文pdf。你不是唯一一个对这种事情感觉头大的人，幸运的是有许多工具可以帮你！</p>
+<p>这些工具一般叫做“构建系统”，这类东西在市面上真的数不胜数。具体用什么药取决于你要做的具体工作、你用的语言、你工程的大小，但他们的核心是非常相似的。你需要先定义一些<code>依赖</code>，一些<code>目标</code>，和从一个到另一个的一些<code>规则</code>。你告诉构建系统你需要一个特别的<code>目标</code>，然后它们自动的运用这些规则去产生<code>中间目标</code>，直到你要的最终目标被生成出来。在理想情况下，对于依赖关系未发生变化的目标，构建系统会直接从之前的构建中获得结果而不是重新构建一次这些目标。</p>
+<p><code>make</code>是最常用的构建系统之一，你会发现它几乎在所有类UNIX系统中存在。它有它自己的毒瘤之处，但是确实对小的项目来说用起来非常方便。当你运行<code>make</code>，它会在你当前目录下查找一个叫<code>Makefile</code>的文件。所有的目标，依赖和规则都被定义在这个文件中。我们看看一个例子：</p>
+<pre><code>paper.pdf: paper.tex plot-data.png
+	pdflatex paper.tex
+
+plot-%.png: %.dat plot.py
+	./plot.py -i $*.dat -o $@
+</code></pre><p>文件里的每个指令都是如何从左手侧生成到右手侧的规则。换句话说，右手侧被命名的东西是依赖，左手侧被命名的是目标。在<code>make</code>中，第一个指令会被认为是默认的目标。如果你不带任何参数的运行<code>make</code>，这个目标会被构建。你可以指定构建目标，运行类似<code>make plot-data.png</code>的命令。</p>
+<p><code>%</code>符号在规则中表示一个“模式”，它将会匹配上所有在左手侧与右手侧相同的字符串。举个栗子，如果目标<code>plot-foo.png</code>是被请求的对象，<code>make</code>将会寻找依赖项<code>foo.dat</code>和<code>plot.py</code>。现在我们来看看如果我们在一个空源码目录下运行<code>make</code>会发生什么。</p>
+<pre><code>$ make
+make: *** No rule to make target 'paper.tex', needed by 'paper.pdf'.  Stop.
+</code></pre><p><code>make</code>告诉我们为了构建<code>paper.pdf</code>，需要<code>paper.tex</code>，然而没有规则告诉它如何构建这个文件。我们试试看搞一个出来会变成什么样</p>
+<pre><code>$ touch paper.tex
+$ make
+make: *** No rule to make target 'plot-data.png', needed by 'paper.pdf'.  Stop.
+</code></pre><p>Hmmm，有趣，确实有一条规则生成<code>plot-data.png</code>，但是是一条模式规则。因为源文件并不存在（<code>foo.dat</code>），<code>make</code>简单地认为它无法生成文件。我们试试创建所有的文件</p>
+<pre><code>$ cat paper.tex
+\documentclass{article}
+\usepackage{graphicx}
+\begin{document}
+\includegraphics[scale=0.65]{plot-data.png}
+\end{document}
+$ cat plot.py
+#!/usr/bin/env python
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-i', type=argparse.FileType('r'))
+parser.add_argument('-o')
+args = parser.parse_args()
+
+data = np.loadtxt(args.i)
+plt.plot(data[:, 0], data[:, 1])
+plt.savefig(args.o)
+$ cat data.dat
+1 1
+2 2
+3 3
+4 4
+5 8
+</code></pre><p>现在我们运行<code>make</code>会发生什么呢？</p>
+<pre><code>$ make
+./plot.py -i data.dat -o plot-data.png
+pdflatex paper.tex
+... lots of output ...
+</code></pre><p>看！它生成了一个PDF！如果我们再运行一次<code>make</code>会发生什么呢？</p>
+<pre><code>$ make
+make: 'paper.pdf' is up to date.
+</code></pre><p>它啥也没做！为什么呢？因为它不需要做任何事！它检查了所有之前的构建目标发现它们都是最新的。我们可以测试一下，随便改一下<code>paper.tex</code>然后重新跑<code>make</code></p>
+<pre><code>$ vim paper.tex
+$ make
+pdflatex paper.tex
+...
+</code></pre><p>注意到<code>make</code>没有重新跑<code>plot.py</code>因为没必要：没有<code>plot-data.png</code>相关的依赖被修改过。</p>
+<h1 id="依赖管理">依赖管理</h1>
+<p>在更加宏观的层面上，你的软件项目可能具有本身就是项目的依赖项。你可能依赖安装好的程序（例如<code>python</code>），系统包（例如<code>openssl</code>），或者你的程序设计语言自带的库（例如<code>matplotlib</code>）。就目前而言，通过仓库在一个地方管理大量的依赖并提供方便的安装机制是可行的。一些例子：Ubuntu的包管理器，当你用<code>apt</code>工具的时候；RubyGems管理Ruby库；PyPi管理Python库；Arch用户仓库对Arch用户。</p>
+<p>因为具体的关于这些仓库的交互机制各不相同，取决于仓库和工具，我们不会介绍太多，而是涵盖一些所有的仓库中都通用的术语。第一个是versioning（版本）。大部分被用作依赖的项目都会在每次发行的时候带上一个版本号。比如<code>8.1.3</code>或者<code>64.1.20192004</code>。一般来说版本号是数字但是也不一定。版本号最主要的作用就是保证依赖它的软件能够持续的工作。想象一下，如果我在我的库更新的时候重命名了一个函数，如果依赖于我的库的软件也使用了新版的库，那它必须得同时更新不然就扑街了。所以在注明依赖时往往会指定一个具体的版本或是一个版本范围，这样就能保证构建时能够使用正确的依赖版本。</p>
+<p>然而这样还是不够。如果我有一个并不会破坏API接口的安全更新，那么哪些老版本需要立即使用这个带补丁的版本呢？版本组可以解决这个问题，有一个常用的<a href="https://semver.org/"target="_blank">版本语义</a>标准。在这个标准中，每个版本号都遵循下列形式：主版本号.副版本号.补丁号，如下是使用规则</p>
+<ul>
+<li>如果新的发行版中不改变API，那就增加一个补丁号</li>
+<li>如果新的发行版中包含了新的后向兼容的API，那就增加一个副版本号</li>
+<li>如果新的发行版中以不后向兼容的形式改变了API，那就增加一个主版本号</li>
+</ul>
+<p>这些规则已经显示了巨大的优越性。现在如果我的项目依赖了你的项目，在我编译之后它应该在你的库的相同的主版本号下都能正常工作。换言之，如果我依赖了你的<code>1.3.7</code>版本的库，然后他应该能够在<code>1.3.8</code>，<code>1.6.1</code>甚至<code>1.3.0</code>下编译成功。版本<code>2.2.4</code>可能不行应为主版本号增加了。我们在Python的版本中就能看到这种语义版本号的应用，Py2和3的代码不能通用，这就是为什么主版本号变了；Py3.5上能跑的代码在Py3.7上一样能跑，但是Py3.4可能就不行了。</p>
+<p>当使用依赖管理系统的时候，你可能会遇到一个叫“锁”文件的概念。一个锁文件是一个列出了你现在每个依赖库依赖版本的文件。一般来说，你需要在你的系统里显示的把你的依赖们升级到最新版。这有许多的原因，例如避免不必要的重编译，持有可复现的构建，或者不自动升级升级到最新版（例如大版本变了可能就会引起崩溃）。这类依赖锁的一个极致的版本叫做vendoring，会把你依赖的所有东西都直接拷贝一份到你的工程中，这样你就有了对他们完全的控制权限，也意味着你必须手动的升级到上游的新版本。</p>
+<h1 id="持续集成系统">持续集成系统</h1>
+<p>当你工作的项目越来越大，你会发现在你改了代码之后你会有越来越多的额外的事情要做。你可能不得不上传新版本的文档，把编译好的版本传到某个地方，把代码扔上PyPi，跑全套测试，等等。可能每次有人给你发了个PR之后，你希望他们的代码是能通过你的代码的代码风格检验，你还希望他们能直接看到他们修改后版本的跑分结果等等。当这些需求出现了，那就是时候寻找持续集成系统的帮助了。</p>
+<p>持续集成（Continuous integration）或者简称CI，是一个总括性的术语表示“每当你代码改变的时候会运行的东西”，不同公司都会提供不同形式的CI。有一些比较大的CI例如“Travis CI”， “Azue Pipelines”或“Github Actions”。他们都用差不多的机制运行：当你在你的仓库内增加代码并说明发生了什么的时候自动执行操作。最常见的规则是“有人提交代码的时候，跑全套test”。当事件被触发，CI会开个虚拟机并执行你设计好的命令。</p>
+<p>一个例子就是Github Pages上的博客可以用CI来进行构建，这样就可以不同本地生成全站再上传。</p>
+<h2 id="简单的介绍一下测试系统">简单的介绍一下测试系统</h2>
+<p>大型项目都会有它们的一整套测试。你可能已经对一些测试相关的概念非常熟悉了，但是这里还是提一下这些术语。</p>
+<ul>
+<li>Test suite： 一个集合性术语包含所有测试</li>
+<li>单元测试：一个微型的测试，仅仅测试某个独立的功能</li>
+<li>集成测试：一个大型的测试，测试多个系统组件是否能一起正常工作</li>
+<li>回归测试：一个特定模式的测试，测试之前修好的bug是否会重现</li>
+<li>Mocking模拟： 一种用假的代码替换到特定的函数或模块的方法，保证测试不会关联到无关的功能</li>
+</ul></article><section class="article labels"><a class="tag" href=/tags/missing-semester/>Missing Semester</a><a class="tag" href=/tags/notes/>notes</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/missing-semester-notes-08/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Security and Cryptography</a></p><p><a class="link" href="/posts/missing-semester-notes-06/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Debugging and Profiling</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

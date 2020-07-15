@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>git on 松松的Blog</title>
+    <link>/tags/git/</link>
+    <description>Recent content in git on 松松的Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <copyright>2020 Song.</copyright>
+    <lastBuildDate>Fri, 22 May 2020 18:20:23 +0800</lastBuildDate>
+    
+        <atom:link href="/tags/git/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Missing Semester Notes - Version Control (git)</title>
+      <link>/posts/missing-semester-notes-05/</link>
+      <pubDate>Fri, 22 May 2020 18:20:23 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-05/</guid>
+      <description>&lt;p&gt;版本控制系统就是用来追踪文件或文件夹改变的工具。一方面可以用来维护文件修改的历史，另一方面它促进了多人协作。版本控制这么有用是为啥呢？就算你一个人工作，你也可以通过查看历史变更或者快照来理解当时的情景，或者是能让你同时在多个分支上并行的工作。如果与他人合作的话，那更是个无价之宝了。&lt;/p&gt;</description>
+      
+    </item>
+    
+  </channel>
+</rss>

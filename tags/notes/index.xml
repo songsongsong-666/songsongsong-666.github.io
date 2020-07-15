@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>notes on 松松的Blog</title>
+    <link>/tags/notes/</link>
+    <description>Recent content in notes on 松松的Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <copyright>2020 Song.</copyright>
+    <lastBuildDate>Sat, 13 Jun 2020 19:56:33 +0800</lastBuildDate>
+    
+        <atom:link href="/tags/notes/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Missing Semester Notes - Potpourri</title>
+      <link>/posts/missing-semester-notes-09/</link>
+      <pubDate>Sat, 13 Jun 2020 19:56:33 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-09/</guid>
+      <description>&lt;p&gt;大杂烩 最后介绍一些概念&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Security and Cryptography</title>
+      <link>/posts/missing-semester-notes-08/</link>
+      <pubDate>Sun, 07 Jun 2020 10:29:50 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-08/</guid>
+      <description>&lt;p&gt;一些基本的密码学概念。目的并不是让你设计安全系统或者加密协议，而是让你能够理解现在正在使用的密码协议和工具。&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Metaprogramming</title>
+      <link>/posts/missing-semester-notes-07/</link>
+      <pubDate>Sat, 30 May 2020 17:13:46 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-07/</guid>
+      <description>&lt;p&gt;我们说的“元编程”是什么意思呢？这是我们能想到的最好的集体名词，用来概述那些有关过程，而不是如何写代码或者更有效的工作的东西。这里我们要来看看那些有关编译与测试、依赖管理的系统。这些看起来与一天天的学生生活没什么关系，但是当你们有一天走进现实世界并要在大型代码库中工作的时候，你会发现它们无处不在。&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Debugging and Profiling</title>
+      <link>/posts/missing-semester-notes-06/</link>
+      <pubDate>Sat, 30 May 2020 12:55:07 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-06/</guid>
+      <description>&lt;p&gt;写代码的时候要牢记一个黄金准则：“你写的代码往往不会按你想的那样运行，而是按照你写的那样运行”，想让这两者一致真的需要高超的技巧。这一讲会介绍一些使用的debug和profiling技巧。&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Version Control (git)</title>
+      <link>/posts/missing-semester-notes-05/</link>
+      <pubDate>Fri, 22 May 2020 18:20:23 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-05/</guid>
+      <description>&lt;p&gt;版本控制系统就是用来追踪文件或文件夹改变的工具。一方面可以用来维护文件修改的历史，另一方面它促进了多人协作。版本控制这么有用是为啥呢？就算你一个人工作，你也可以通过查看历史变更或者快照来理解当时的情景，或者是能让你同时在多个分支上并行的工作。如果与他人合作的话，那更是个无价之宝了。&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Command-line Environment</title>
+      <link>/posts/missing-semester-notes-04/</link>
+      <pubDate>Wed, 20 May 2020 20:37:58 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-04/</guid>
+      <description>&lt;p&gt;继续介绍提升shell下工作效率的方法。我们之前都集中于如何执行各种命令，这节课我们将看到如何同时运行多个进程并跟踪他们的状态。我们也会学几个命令和方法，通过别名和配置文件的形式。这些都能帮助你节省时间。比如在你的所有机器上部署一样的配置文件而避免冗长的命令。你将看到怎么通过SSH使用远程机器。&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Data Wrangling</title>
+      <link>/posts/missing-semester-notes-03/</link>
+      <pubDate>Sat, 16 May 2020 15:23:13 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-03/</guid>
+      <description>&lt;p&gt;数据整理&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Editor(Vim)</title>
+      <link>/posts/missing-semester-notes-02/</link>
+      <pubDate>Fri, 15 May 2020 18:18:34 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-02/</guid>
+      <description>&lt;p&gt;讲讲Vim&lt;/p&gt;</description>
+      
+    </item>
+    
+    <item>
+      <title>Missing Semester Notes - Shell Tools and Scripting</title>
+      <link>/posts/missing-semester-notes-01/</link>
+      <pubDate>Fri, 15 May 2020 18:17:53 +0800</pubDate>
+      
+      <guid>/posts/missing-semester-notes-01/</guid>
+      <description>&lt;p&gt;基础的Bash用法&lt;/p&gt;</description>
+      
+    </item>
+    
+  </channel>
+</rss>

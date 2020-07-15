@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Missing Semester Notes - Debugging and Profiling&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Missing Semester Notes - Debugging and Profiling" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Missing Semester Notes - Debugging and Profiling</h1><p class="article date">2020-05-30</p></section><article class="article markdown-body"><p>写代码的时候要牢记一个黄金准则：“你写的代码往往不会按你想的那样运行，而是按照你写的那样运行”，想让这两者一致真的需要高超的技巧。这一讲会介绍一些使用的debug和profiling技巧。</p>
+<p>原文链接：https://missing.csail.mit.edu/2020/debugging-profiling/</p>
+<h1 id="调试">调试</h1>
+<h2 id="打log">打log</h2>
+<p>“最牛逼的调试工具是经过审慎并明智的思考后，写出输出状态的语句”— Brian Kernighan, Unix for Beginners.</p>
+<p>最直接的方法就是在你想找问题的地方加上一些输出状态的语句，迭代的逐步增加这些知道你得到了足够的关于你的bug的信息。</p>
+<p>另一种方法则是在你的程序中使用日志，而不是在一些点上打出状态。日志比输出状态的优势在此：</p>
+<ul>
+<li>你可以把日志打到文件，管道或者远程服务器上</li>
+<li>日志支持不同的严重度等级，例如INFO，DEBUG，WARN，ERROR等，你可以按需输出</li>
+<li>对新问题，你可能看日志就足够知道哪里出问题了</li>
+</ul>
+<p><a href="https://missing.csail.mit.edu/static/files/logger.py"target="_blank">这里</a>是一个打印日志信息的python例子：</p>
+<pre><code>$ python logger.py
+# Raw output as with just prints
+$ python logger.py log
+# Log formatted output
+$ python logger.py log ERROR
+# Print only ERROR levels and above
+$ python logger.py color
+# Color formatted output
+</code></pre><p>对于提升你日志的可读性，一个重要的技巧就是给它们加上不同的颜色。你可以已经感受到了当你的命令行变成彩色之后你看着有多舒服。好了那我们怎么做呢？像<code>ls</code>或<code>grep</code>这种程序使用了<a href="https://en.wikipedia.org/wiki/ANSI_escape_code"target="_blank">ANSI转义代码</a>，一个特殊的字符序列可以指示你的shell改变输出的颜色。例如，执行<code>echo -e &quot;\e[38;2;255;0;0mThis is red\e[0m&quot;</code>可以用红色在命令行中打印出<code>This is red</code>。下面的脚本尝试在终端中打印出多种RGB颜色。</p>
+<pre><code>#!/usr/bin/env bash
+for R in $(seq 0 20 255); do
+    for G in $(seq 0 20 255); do
+        for B in $(seq 0 20 255); do
+            printf &quot;\e[38;2;${R};${G};${B}m█\e[0m&quot;;
+        done
+    done
+done
+</code></pre><h2 id="第三方日志">第三方日志</h2>
+<p>当你开始写大项目的时候总会依赖一些独立项目，比如说webserver，数据库，消息中间件之类的。拿到这些东西的log是必要的，毕竟一个客户端的报错是没法让你明白哪里有问题的。</p>
+<p>幸运的是，大多数程序都会把自己的log打一份到系统里。在UNIX中常见的地方是<code>/var/log</code>。比如<code>NGINX</code>会把它们的log打到<code>/var/log/nginx</code>。而最近系统开始使用<strong>系统日志</strong>，更多的程序会选择把日志打到那里去。多数Linux系统使用的是<code>systemd</code>，一个系统守护进程控制了系统里的很多事例如服务的启动与运行。<code>systemd</code>把使用特殊格式的日志放在<code>/var/log/journal</code>中，你可以使用<code>journalctl</code>命令去显示这些信息。相似的，在macOS中日志是<code>/var/log/system.log</code>，越来越多的软件使用这里作为日志输出点以便可以用<code>log show</code>来显示它们。在大多数UNIX系统中你可以用<code>dmesg</code>来查看内核日志。</p>
+<pre><code>logger &quot;Hello Logs&quot;
+# On macOS
+log show --last 1m | grep Hello
+# On Linux
+journalctl --since &quot;1m ago&quot; | grep Hello
+</code></pre><p>就像我们之前在数据整理那一节讲到的那样，log可以非常冗长且需要一些根据等级的处理和过滤才能让我们得到想要的信息。如果你发现你在<code>journalctl</code>和<code>log show</code>里要过滤掉的信息太多了，你可以考虑先用程序自带的flag来设置一下输出，先筛一道。这还有个叫<a href="http://lnav.org/"target="_blank">lnav</a>的优秀的工具，可以在log展示与导航上助你一臂之力。</p>
+<h2 id="调试器">调试器</h2>
+<p>当用printf打调试信息还不够的时候，那你就改考虑用调试器了。调试器是一种能让你在程序执行过程中进行交互的程序，能让你做：</p>
+<ul>
+<li>当程序执行到某一行的时候让它停下来</li>
+<li>一条一条指令的执行程序</li>
+<li>在程序崩溃之后检查变量的值</li>
+<li>程序在符合一个给定条件的情况下立即停下</li>
+<li>还有很多高级特性</li>
+</ul>
+<p>多数程序设计语言都有某些形式的调试器。在Python中调试器叫<a href="https://docs.python.org/3/library/pdb.html"target="_blank">pdb</a></p>
+<p>这里有一个简明的<code>pdb</code>指导：</p>
+<ul>
+<li><strong>l</strong>(ist) - 展示当前行周围的11行或继续之前的list命令</li>
+<li><strong>s</strong>(tep) - 执行当前行，在第一个可能的地方停下 （也可叫步入）</li>
+<li><strong>n</strong>(ext) - 继续执行直到当前函数的下一行或者返回时 （也可叫步过）</li>
+<li><strong>b</strong>(reak) - 设置一个断点（根据给出的条件或参数）</li>
+<li><strong>p</strong>(rint) - 在当前的上下文中执行一个表达式并输出它的值，用<strong>pp</strong>可以变成结果由<a href="https://docs.python.org/3/library/pprint.html"target="_blank">pprint</a>输出</li>
+<li><strong>r</strong>(eturn) - 继续执行到当前函数返回</li>
+<li><strong>q</strong>(uit) - 退出调试器</li>
+</ul>
+<p>试着用<code>pdb</code>来调一段简单的python程序吧（详情见课程视频）</p>
+<pre><code>def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(n):
+            if arr[j] &gt; arr[j+1]:
+                arr[j] = arr[j+1]
+                arr[j+1] = arr[j]
+    return arr
+
+print(bubble_sort([4, 2, 1, 8, 7, 6]))
+</code></pre><p>因为Python是个解释性的语言，所以我们可以用<code>pdb</code>的shell去执行命令。<a href="https://pypi.org/project/ipdb/"target="_blank">ipdb</a>是一个使用<a href="https://ipython.org/"target="_blank">IPython</a>解释器环境来提升<code>pdb</code>使用感受的项目，支持tab补全，语法高亮，更好的回溯和更好的自省，并保持了与<code>pdb</code>相同的界面。</p>
+<p>对更低层次的语言你可能得用<a href="https://www.gnu.org/software/gdb/"target="_blank">gdb</a>（以及一个魔改版的<a href="https://github.com/pwndbg/pwndbg"target="_blank">pwndbg</a>）和<a href="https://lldb.llvm.org/"target="_blank">lldb</a>。它们都是为类C语言调试进行了优化，且可以对任何进程进行详尽的调查并得到机器当前的状态：寄存器，栈，当前执行的位置等。</p>
+<h2 id="特殊工具">特殊工具</h2>
+<p>即使你调试的是个二进制黑盒子，也仍然有工具能帮到你。不论什么程序，它们都需要内核帮助它们完成功能，所以它们一定会用到系统调用<a href="https://en.wikipedia.org/wiki/System_call"target="_blank">System Call</a>。有一些命令能让你追踪到一个程序的系统调用。在Linux下是<a href="http://man7.org/linux/man-pages/man1/strace.1.html"target="_blank">strace</a>，在macOS和BSD下是<a href="http://dtrace.org/blogs/about/"target="_blank">dtrace</a>。<code>dtrace</code>是比较难用的因为它用了它自己的D语言，但是它有个封装好的接口叫<a href="https://www.manpagez.com/man/1/dtruss/"target="_blank">dtruss</a>提供了和<code>strace</code>非常相似的界面。这里有<a href="https://8thlight.com/blog/colin-jones/2015/11/06/dtrace-even-better-than-strace-for-osx.html"target="_blank">详细</a></p>
+<p>下面是一些用<code>strace</code>或<code>dtruss</code>去显示<a href="http://man7.org/linux/man-pages/man2/stat.2.html"target="_blank">stat</a>在<code>ls</code>中的系统调用的例子。如果你想详细研究一下<code>strace</code>，<a href="https://blogs.oracle.com/linux/strace-the-sysadmins-microscope-v2"target="_blank">这</a>是一篇不错的文章。</p>
+<pre><code># On Linux
+sudo strace -e lstat ls -l &gt; /dev/null
+4
+# On macOS
+sudo dtruss -t lstat64_extended ls -l &gt; /dev/null
+</code></pre><p>在一些条件下，你可能需要抓一下网络上的包才能定位你的问题。一些工具例如<a href="http://man7.org/linux/man-pages/man1/tcpdump.1.html"target="_blank">tcpdump</a>和<a href="https://www.wireshark.org/"target="_blank">Wireshark</a>是一些网络封包分析器，你可以设置好你要的过滤器以便找到你要的包。</p>
+<p>对于Web开发来说，Chrome的开发者工具已经足够好使了。它们有及其全面的功能，比如：</p>
+<ul>
+<li>源码 - 查看HTML CSS JS的源码</li>
+<li>在线HTML CSS JS的修改 - 直接在网页上改东西，方便你查看效果</li>
+<li>Javascript shell - 在JS交互环境中执行命令</li>
+<li>存储 - 查看Cookie和本地应用的存储空间</li>
+</ul>
+<h2 id="静态分析">静态分析</h2>
+<p>一些情况下你不需要跑代码的。比如你用了影子变量（不同作用域的同名变量）或者用了未初始化的变量等。这时候<a href="https://en.wikipedia.org/wiki/Static_program_analysis"target="_blank">静态代码分析工具</a>就派上用场了。静态分析工具会根据一些规则对你的代码的正确性进行分析判断。</p>
+<p>下面的Python片段就犯了好几个错误。首先，循环变量<code>foo</code>就是个之前被定义过的影子量。我们也在最后一行把<code>bar</code>写成了<code>baz</code>，所以程序在<code>sleep</code>完之后就会crash。</p>
+<pre><code>import time
+
+def foo():
+    return 42
+
+for foo in range(5):
+    print(foo)
+bar = 1
+bar *= 0.2
+time.sleep(60)
+print(baz)
+</code></pre><p>静态分析工具可以找出这些问题。当我们对着这段代码运行<a href="https://pypi.org/project/pyflakes"target="_blank">pyflakes</a>时我们会得到上述我们分析的结果。[mypy]是另一个能够进行类型问题检查的工具。在这个例子中，<code>mypy</code>将会警告我们<code>bar</code>被初始化成<code>int</code>类型然后被转换成<code>float</code>。重申一下，以上的东西都是不需要运行代码就可以得到的。</p>
+<p>在Shell工具课上我峨嵋你提到了<a href="https://www.shellcheck.net/"target="_blank">shellcheck</a>，这也可以看作是一个shell的静态分析工具。</p>
+<pre><code>$ pyflakes foobar.py
+foobar.py:6: redefinition of unused 'foo' from line 3
+foobar.py:11: undefined name 'baz'
+
+$ mypy foobar.py
+foobar.py:6: error: Incompatible types in assignment (expression has type &quot;int&quot;, variable has type &quot;Callable[[], Any]&quot;)
+foobar.py:9: error: Incompatible types in assignment (expression has type &quot;float&quot;, variable has type &quot;int&quot;)
+foobar.py:11: error: Name 'baz' is not defined
+Found 3 errors in 1 file (checked 1 source file)
+</code></pre><p>多数编辑器和IDE都支持在它们界面内部直接显示这些工具的结果，并在有问题的行上直接高亮提示。这种功能被称作<strong>code linting</strong>，当然也可以用于显示代码风格或是结构上的问题。</p>
+<p>在Vim中，插件<a href="https://vimawesome.com/plugin/ale"target="_blank">ale</a>或<a href="https://vimawesome.com/plugin/syntastic"target="_blank">syntastic</a>可以让你做这些事。对Python来说，<a href="https://www.pylint.org/"target="_blank">pylint</a>和<a href="https://pypi.org/project/pep8/"target="_blank">pep8</a>是代码风格提示的东西，<a href="https://pypi.org/project/bandit/"target="_blank">bandit</a>是一个被设计来找到常见安全问题的工具。对于其他的语言，有人搞了个表列出了这些东西，在<a href="https://github.com/mre/awesome-static-analysis"target="_blank">Awesome Static Analysis</a>和<a href="https://github.com/caramelomartins/awesome-linters"target="_blank">Awesome Linters</a></p>
+<p>一个辅助性的代码风格工具是代码格式化工具，例如Python的<a href="https://github.com/psf/black"target="_blank">black</a>，Go的<code>gofmt</code>，Rust的<code>rustfmt</code>和JSHTMLCSS的<a href="https://prettier.io"target="_blank">prettier</a></p>
+<h1 id="profiling-性能调优">Profiling 性能调优</h1>
+<p>即使你写的代码能够按照你想的那样运行，如果它占用了你全部的CPU和内存想必也不是你想要的。算法课上都会教你大O表示法，但不会叫你怎么找出你程序里的热点（hot spot）。因为<a href="http://wiki.c2.com/?PrematureOptimization"target="_blank">过早的优化是罪恶的根源</a>，你需要学习性能分析器和一些监视工具。他们能让你理解你的哪一部分程序占用了最多的时间或资源，然后你再对症下药。</p>
+<h2 id="时间">时间</h2>
+<p>像之前调试一样，大多数情况下，打印出耗费的时间就足够了。Python可以用time模块完成</p>
+<pre><code>import time, random
+n = random.randint(1, 10) * 100
+
+# Get current time
+start = time.time()
+
+# Do some work
+print(&quot;Sleeping for {} ms&quot;.format(n))
+time.sleep(n/1000)
+
+# Compute time between start and now
+print(time.time() - start)
+
+# Output
+# Sleeping for 500 ms
+# 0.5713930130004883
+</code></pre><p>然而，靠“墙上的时钟”来计时是不公平的，因为你的机器一定不止在同一个时段只运行你的程序。所以一般工具要区分三种时间,<strong>Real</strong>,<strong>User</strong>和<strong>Sys</strong>时间。一般来说，<code>User</code>+<code>Sys</code>时间能表示你的进程到底耗费了多少CPU上的时间，<a href="https://stackoverflow.com/questions/556405/what-do-real-user-and-sys-mean-in-the-output-of-time1"target="_blank">这里</a>有一个详尽的解释。</p>
+<ul>
+<li><code>Real</code> - 可以看作是“墙上的时钟”，也就是说是真实世界中的时间消耗</li>
+<li><code>User</code> - CPU在运行用户态空间中的代码所耗费的时间</li>
+<li><code>Sys</code> - CPU在运行内核态空间中的代码所耗费的时间</li>
+</ul>
+<p>举个栗子，我们用<a href="http://man7.org/linux/man-pages/man1/time.1.html"target="_blank">time</a>统计一下我们发一个http请求用的时间。如果你的网速不够快的话，就会得到一个类似如下的结果。整个请求花了超过2秒，但只占用了0.015秒的用户态时间和0.012秒的内核态时间</p>
+<pre><code>$ time curl https://missing.csail.mit.edu &amp;&gt; /dev/null`
+real    0m2.561s
+user    0m0.015s
+sys     0m0.012s
+</code></pre><h2 id="性能分析器">性能分析器</h2>
+<h3 id="cpu">CPU</h3>
+<p>大多数时候人们提到性能分析的时候都是指CPU性能分析。有两种主流类型的性能分析方式：跟踪（tracing）和采样（sampling）。跟踪式的分析器会记录每个函数调用，而采样式分析器会定期（大多是情况下以1毫秒作为间隔）记录你的程序的调用栈。它们使用这些记录进行聚合分析来找出你的程序在哪里花的时间最多。<a href="https://jvns.ca/blog/2017/12/17/how-do-ruby---python-profilers-work-"target="_blank">这里</a>有一篇详细介绍这些内容的文章。</p>
+<p>大多数程序设计语言都有一些基于命令行的性能分析器。它们常常被整合进了各类宇宙级IDE中，但是这节课我们将专注于命令行工具自身。</p>
+<p>在Python中我们可以用<code>cProfile</code>模块去分析每个函数调用的时间。这里是一个实现初步的grep的例子：</p>
+<pre><code>#!/usr/bin/env python
+
+import sys, re
+
+def grep(pattern, file):
+    with open(file, 'r') as f:
+        print(file)
+        for i, line in enumerate(f.readlines()):
+            pattern = re.compile(pattern)
+            match = pattern.search(line)
+            if match is not None:
+                print(&quot;{}: {}&quot;.format(i, line), end=&quot;&quot;)
+
+if __name__ == '__main__':
+    times = int(sys.argv[1])
+    pattern = sys.argv[2]
+    for i in range(times):
+        for file in sys.argv[3:]:
+            grep(pattern, file)
+</code></pre><p>你可以跑一下下面的命令行。分析输出之后我们可以看到IO占了大部分时间，编译正则表达式也占了不少时间。因为正则表达式只需要被编译一次，我们可以将它们从循环中拿出来。</p>
+<pre><code>$ python -m cProfile -s tottime grep.py 1000 '^(import|\s*def)[^,]*$' *.py
+
+[omitted program output]
+
+ ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+     8000    0.266    0.000    0.292    0.000 {built-in method io.open}
+     8000    0.153    0.000    0.894    0.000 grep.py:5(grep)
+    17000    0.101    0.000    0.101    0.000 {built-in method builtins.print}
+     8000    0.100    0.000    0.129    0.000 {method 'readlines' of '_io._IOBase' objects}
+    93000    0.097    0.000    0.111    0.000 re.py:286(_compile)
+    93000    0.069    0.000    0.069    0.000 {method 'search' of '_sre.SRE_Pattern' objects}
+    93000    0.030    0.000    0.141    0.000 re.py:231(compile)
+    17000    0.019    0.000    0.029    0.000 codecs.py:318(decode)
+        1    0.017    0.017    0.911    0.911 grep.py:3(&lt;module&gt;)
+
+[omitted lines]
+</code></pre><p>Python的<code>cProfile</code>分析器的输出式每个调用函数的耗时。这可能会给人一种快的反直觉的感觉，尤其是在用第三方库的时候，因为内部函数的调用也被考虑在内了。一个更直观的显示性能分析信息的方式式显示每一行代码所占用的时间，这是“行性能分析器”做的事。</p>
+<p>例如下面的代码片段访问了网页并提取了页面内所有的URL链接</p>
+<pre><code>#!/usr/bin/env python
+import requests
+from bs4 import BeautifulSoup
+
+# This is a decorator that tells line_profiler
+# that we want to analyze this function
+@profile
+def get_urls():
+    response = requests.get('https://missing.csail.mit.edu')
+    s = BeautifulSoup(response.content, 'lxml')
+    urls = []
+    for url in s.find_all('a'):
+        urls.append(url['href'])
+
+if __name__ == '__main__':
+    get_urls()
+</code></pre><p>如果我们用Python的<code>cProfile</code>我们会得到2500多行的输出。。。即使我们把它们排序了也很难看出啥有用的结果。一个用<a href="https://github.com/rkern/line_profiler"target="_blank">行分析器</a>快速的出的结果显示了每行代码所用的时间。</p>
+<pre><code>$ kernprof -l -v a.py
+Wrote profile results to urls.py.lprof
+Timer unit: 1e-06 s
+
+Total time: 0.636188 s
+File: a.py
+Function: get_urls at line 5
+
+Line #  Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+ 5                                           @profile
+ 6                                           def get_urls():
+ 7         1     613909.0 613909.0     96.5      response = requests.get('https://missing.csail.mit.edu')
+ 8         1      21559.0  21559.0      3.4      s = BeautifulSoup(response.content, 'lxml')
+ 9         1          2.0      2.0      0.0      urls = []
+10        25        685.0     27.4      0.1      for url in s.find_all('a'):
+11        24         33.0      1.4      0.0          urls.append(url['href'])
+</code></pre><h3 id="内存">内存</h3>
+<p>在C或者C++这类语言中内存泄漏可以说是最让人头大的问题。一些对于进程的内存调试工具例如<a href="https://valgrind.org/"target="_blank">Valgrind</a>可以让你找出内存泄漏。</p>
+<p>在带有垃圾回收的语言例如Python中，内存分析器也是很有用的因为只要你在程序中还拿着指向某个对象的指针，这个对象就永远不会被回收。这里是一个例子程序，下面是它与<a href="https://pypi.org/project/memory-profiler/"target="_blank">memory-profiler</a>（这是一个像行分析器一样的用装饰器来作为分析标志的东西）</p>
+<pre><code>@profile
+def my_func():
+    a = [1] * (10 ** 6)
+    b = [2] * (2 * 10 ** 7)
+    del b
+    return a
+
+if __name__ == '__main__':
+    my_func()
+</code></pre><pre><code>$ python -m memory_profiler example.py
+Line #    Mem usage  Increment   Line Contents
+==============================================
+     3                           @profile
+     4      5.97 MB    0.00 MB   def my_func():
+     5     13.61 MB    7.64 MB       a = [1] * (10 ** 6)
+     6    166.20 MB  152.59 MB       b = [2] * (2 * 10 ** 7)
+     7     13.61 MB -152.59 MB       del b
+     8     13.61 MB    0.00 MB       return a
+</code></pre><h3 id="事件分析器">事件分析器</h3>
+<p>就像用<code>strace</code>调试一样，你想忽略掉特定代码并把你正在跑的程序当作黑盒一样进行性能分析。<a href="http://man7.org/linux/man-pages/man1/perf.1.html"target="_blank">perf</a>命令抽象了CPU之间的差异也不关心时间消耗与内存消耗，而是会告诉你与你运行的程序有关的系统事件。例如<code>perf</code>可以很容易的发现缓存不命中的问题，高频率的页面错误或活锁问题。如下是它的概览：</p>
+<ul>
+<li><code>perf list</code> - 列出可以被跟踪的事件</li>
+<li><code>perf stat COMMAND ARG1 ARG2</code> 对不同的事件进行统计</li>
+<li><code>perf record COMMAND ARG1 ARG2</code> 保存分析结果到<code>perf.data</code>中</li>
+<li><code>perf report</code> - 对<code>perf.data</code>中的数据进行格式化后打印</li>
+</ul>
+<h3 id="可视化">可视化</h3>
+<p>对实战中的程序进行perf一般都会得到一个巨大量的输出结果。人类是种视觉生物，而且在阅读大量数字的时候往往非常不敏感。所以有许多工具都尝试将分析器的输出以直观的形式展现出来。一种常见的展示CPU性能分析的方法就是使用<a href="http://www.brendangregg.com/flamegraphs.html"target="_blank">火焰图</a>，它用Y轴展示函数调用，并用X轴展示花费的事件。而且这种图也是可交互的，你可以用点击的形式对某个部分进行缩放。<img  src="http://www.brendangregg.com/FlameGraphs/cpu-bash-flamegraph.svg"
+        alt="火焰图"/></p>
+<p>调用图或者控制流程图显示了程序中各个子程序的关系。当这类图加上性能分析信息例如调用的次数与耗时，调用图就可以变得对解释程序的执行非常的有用了。在Python中用<a href="http://pycallgraph.slowchop.com/en/master/"target="_blank">pycallgraph</a>可以生成这样的图。<img  src="https://upload.wikimedia.org/wikipedia/commons/2/2f/A_Call_Graph_generated_by_pycallgraph.png"
+        alt="调用图"/></p>
+<h3 id="资源监视">资源监视</h3>
+<p>有的时候，性能分析第一步要做的事是了解你的程序到底消耗了多少的资源。程序跑得慢的常见原因就是它们使用资源遭到限制，例如没有足够的网速或者内存。有无数的命令行工具可以分析与显示不同的系统资源例如CPU用量，内存使用，网络，磁盘以及其他。</p>
+<ul>
+<li>通用监视 - 最流行的应该就是<a href="https://hisham.hm/htop/index.php"target="_blank">htop</a>，是一个对top的强化版本。<code>htop</code>显示对于正在运行的进程的多种统计量，并有大量的选项与快捷键可以使用。一些常用的比如<code>&lt;F6&gt;</code>给进程排序，<code>t</code>显示进程的树形结构与<code>h</code>去切换线程。<a href="https://nicolargo.github.io/glances/"target="_blank">glances</a>也有类似的带有漂亮UI的实现。要在所有的进程间聚合测量信息，<a href="http://dag.wiee.rs/home-made/dstat/"target="_blank">dstat</a>是另一个实时测量系统资源消耗的工具，包括IO，网络，CPU，上下文切换量等</li>
+<li>IO操作 - <a href="https://www.man7.org/linux/man-pages/man8/iotop.8.html"target="_blank">iotop</a>显示当前的IO用量，可以用来检查进程是否在做繁重的IO操作</li>
+<li>硬盘用量 - <a href="https://www.man7.org/linux/man-pages/man1/df.1.html"target="_blank">df</a>显示了每个分区的用量信息，<a href="http://man7.org/linux/man-pages/man1/du.1.html"target="_blank">du</a>显示了当前目录下的每个文件的用量。在这些工具里，<code>-h</code>参数可以告诉程序以方便阅读的形式输出信息。一个拥有更多交互功能的<code>du</code>版本是<a href="https://dev.yorhel.nl/ncdu"target="_blank">ncdu</a></li>
+<li>内存用量 - <a href="https://www.man7.org/linux/man-pages/man1/free.1.html"target="_blank">free</a>显示了系统中的可用与已用内存。<code>htop</code>一样可以显示已用内存</li>
+<li>打开文件 - <a href="https://www.man7.org/linux/man-pages/man8/lsof.8.html"target="_blank">lsof</a>列出了关于进程打开的文件的相关信息。可以用来检查进程是否打开了某个特定的文件</li>
+<li>网络连接与配置 - <a href="https://www.man7.org/linux/man-pages/man8/ss.8.html"target="_blank">ss</a>让你能够监视传入与发出的网络封包统计信息。一个常见的用法是找出正在使用特定端口的是哪个进程。为了显示路由，网络设备或者接口，常用的命令是<a href="http://man7.org/linux/man-pages/man8/ip.8.html"target="_blank">ip</a>。注意到<code>netstat</code>和<code>ifconfig</code>实际上已经被标注为废弃了，所以不推荐使用</li>
+<li>网络用量 - <a href="https://github.com/raboof/nethogs"target="_blank">nethogs</a>与<a href="http://www.ex-parrot.com/pdw/iftop/"target="_blank">iftop</a>一个很好的交互式可以用来监视网络用量的命令行工具</li>
+</ul>
+<p>如果你想测试上述的工具的话，你可以用<a href="https://linux.die.net/man/1/stress"target="_blank">stress</a>给机器加上一些负载。</p>
+<h3 id="专用工具">专用工具</h3>
+<p>有的时候，仅仅跑个分就足够你决定你要使用哪一类软件了。像<a href="https://github.com/sharkdp/hyperfine"target="_blank">hyperfine</a>是一个能让你快速跑个分的命令行工具。例如之前我们推荐用<code>fd</code>而不是<code>find</code>，我们就可以用<code>hyperfine</code>来对比一下这两个工具的速度，你会发现在这台机器上<code>fd</code>大概快20倍</p>
+<pre><code>$ hyperfine --warmup 3 'fd -e jpg' 'find . -iname &quot;*.jpg&quot;'
+Benchmark #1: fd -e jpg
+  Time (mean ± σ):      51.4 ms ±   2.9 ms    [User: 121.0 ms, System: 160.5 ms]
+  Range (min … max):    44.2 ms …  60.1 ms    56 runs
+
+Benchmark #2: find . -iname &quot;*.jpg&quot;
+  Time (mean ± σ):      1.126 s ±  0.101 s    [User: 141.1 ms, System: 956.1 ms]
+  Range (min … max):    0.975 s …  1.287 s    10 runs
+
+Summary
+  'fd -e jpg' ran
+   21.89 ± 2.33 times faster than 'find . -iname &quot;*.jpg&quot;'
+</code></pre><p>以上这些都是在本地机器上调试的技巧。浏览器同样提供了一套完备的调试工具生态链，去<a href="https://developer.mozilla.org/en-US/docs/Mozilla/Performance/Profiling_with_the_Built-in_Profiler"target="_blank">Firefox</a>和<a href="https://developers.google.com/web/tools/chrome-devtools/rendering-tools"target="_blank">Chrome</a>看看吧</p></article><section class="article labels"><a class="tag" href=/tags/missing-semester/>Missing Semester</a><a class="tag" href=/tags/notes/>notes</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/missing-semester-notes-07/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Metaprogramming</a></p><p><a class="link" href="/posts/missing-semester-notes-05/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Version Control (git)</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

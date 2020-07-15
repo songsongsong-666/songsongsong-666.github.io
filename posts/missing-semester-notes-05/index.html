@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Missing Semester Notes - Version Control (git)&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Missing Semester Notes - Version Control (git)" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Missing Semester Notes - Version Control (git)</h1><p class="article date">2020-05-22</p></section><article class="article markdown-body"><p>版本控制系统就是用来追踪文件或文件夹改变的工具。一方面可以用来维护文件修改的历史，另一方面它促进了多人协作。版本控制这么有用是为啥呢？就算你一个人工作，你也可以通过查看历史变更或者快照来理解当时的情景，或者是能让你同时在多个分支上并行的工作。如果与他人合作的话，那更是个无价之宝了。</p>
+<p>原文链接：https://missing.csail.mit.edu/2020/version-control/</p>
+<p>现代版本控制系统可以方便的给你这些问题的答案：</p>
+<ul>
+<li>这玩意谁写的</li>
+<li>这行谁改的？为啥改的？</li>
+<li>在过去的1000个版本中，啥时候以及为啥导致某个东西崩了</li>
+</ul>
+<p>Git就是一个非常牛逼的版本管理系统。Git有一个抽象的命令行界面，如果你想从命令行界面入手学习Git（也就是背命令）会不那么舒服。但是Git的内在是非常美丽的，我们从原理与设计开始自底向上的解释Git。</p>
+<h1 id="git的数据模型">Git的数据模型</h1>
+<p>版本控制的方法有很多。Git使用了一个经过精心设计的模型，使得它可以使用所有的版本控制特性，例如维护历史，支持分直，可以多人协作等。</p>
+<h2 id="快照">快照</h2>
+<p>Git将顶层目录中的文件与文件夹的集合的变更历史建模为一系列快照。在Git术语中，一个文件被称为一个&quot;blob&rdquo;，并视为一个字节串。一个目录被称为&quot;tree&rdquo;，它将名称映射到对应的&quot;blob&quot;或&quot;tree&quot;上（所以目录才可以嵌套）。一个快照是一个被跟踪的顶层&quot;tree&rdquo;。例如我们有如下的目录结构：</p>
+<pre><code>&lt;root&gt; (tree)
+|
++- foo (tree)
+|  |
+|  + bar.txt (blob, contents = &quot;hello world&quot;)
+|
++- baz.txt (blob, contents = &quot;git is wonderful&quot;)
+</code></pre><p>顶层tree包含了两个元素，一个tree &ldquo;foo&rdquo;（它自己还包含了一个元素，blob &ldquo;bar.txt&rdquo;），和一个blob &ldquo;baz.txt&rdquo;。</p>
+<h2 id="建模历史相关快照">建模历史：相关快照</h2>
+<p>版本控制系统怎么将快照之间建立联系呢？一个简单的model将会仅仅有一个线性的历史。一个历史将会是一个遵循时间顺序的快照序列。基于多种原因，Git不会使用这种简单的模型。</p>
+<p>在Git中，历史使用快照的有向无环图来表示。这表示每一个快照都有一个&quot;parents&quot;集合，表示该快照的来源（不是仅有一个，因为一个快照可能有平行的分支们合并而来）。</p>
+<p>Git中称快照为&quot;commit&rdquo;。可视化一个commit历史我们大概能看到这样的东西：</p>
+<pre><code>o &lt;-- o &lt;-- o &lt;-- o
+            ^  
+             \
+              --- o &lt;-- o
+</code></pre><p>“图”中的<code>o</code>表示每一个commit（快照）。箭头指向commit的parents，也就是来源。所以图上表示在第三个commit之后，新的分支出现了。在实际中这可能代表在开发中并行开发两个新的独立的特性。当这些特性都开发完毕并且要合并并创建一个新的快照时，新的历史可能长这个样子：</p>
+<pre><code>o &lt;-- o &lt;-- o &lt;-- o &lt;---- o
+            ^            /
+             \          v
+              --- o &lt;-- o
+</code></pre><p>Commit在Git中是不可修改的。这不意味着犯了错你无法修正，而是意味着你的修改将会创建一个全新的commit，并使得所有直接或间接指向它的commit发生改变。</p>
+<h2 id="数据模型的伪代码表示">数据模型的伪代码表示</h2>
+<p>看看这段伪代码：</p>
+<pre><code>// a file is a bunch of bytes
+type blob = array&lt;byte&gt;
+
+// a directory contains named files and directories
+type tree = map&lt;string, tree | file&gt;
+
+// a commit has parents, metadata, and the top-level tree
+type commit = struct {
+    parent: array&lt;commit&gt;
+    author: string
+    message: string
+    snapshot: tree
+}
+</code></pre><h2 id="对象与内容寻址">对象与内容寻址</h2>
+<p>一个对象可以是blob,tree或者commit</p>
+<pre><code>type object = blob | tree | commit
+</code></pre><p>在Git的数据存储中，所有的对象都用它们的SHA-1哈希值来寻址。</p>
+<pre><code>objects = map&lt;string, object&gt;
+
+def store(object):
+    id = sha1(object)
+    objects[id] = object
+
+def load(id):
+    return objects[id]
+</code></pre><p>Blob,tree和commit使用这种方法进行了统一：他们都是对象。当它们引用其他对象的时候，它们并不真的包含了它们在硬盘上的内容，而是直接引用他们的哈希值。</p>
+<p>举个栗子，上面作为例子的目录结构（使用<code>git cat-file -p 698281bc680d1995c5f4caaf3359721a5a58d48d</code>进行可视化的）会看起来是这样：</p>
+<pre><code>100644 blob 4448adbf7ecd394f42ae135bbeed9676e894af85    baz.txt
+040000 tree c68d233a33c5c06e0340e4c224f0afca87c8ce87    foo
+</code></pre><p>tree自己包含有指向它的内容的指针：一个blob<code>baz.txt</code>与一个tree<code>foo</code>。如果我们查看baz.txt对应的哈希内容（使用<code>git cat-file -p 4448adbf7ecd394f42ae135bbeed9676e894af85</code>），我们会得到</p>
+<pre><code>git is wonderful
+</code></pre><h2 id="引用">引用</h2>
+<p>好了，现在所有的快照都可以被它们的SHA-1哈希表示了。不太方便的是它们实在太长了，谁能随便记住40位十六进制数呢？</p>
+<p>Git的解决方案是给这些哈希值一个可读的名字，叫做他们的引用。引用是commit的“指针”。它不像对象一样不可修改，它可以被修改并指向一个新的commit。例如<code>master</code>总是指向开发分支中最新的commit</p>
+<pre><code>references = map&lt;string, string&gt;
+
+def update_reference(name, id):
+    references[name] = id
+
+def read_reference(name):
+    return references[name]
+
+def load_reference(name_or_id):
+    if name_or_id in references:
+        return load(references[name_or_id])
+    else:
+        return load(name_or_id)
+</code></pre><p>有了这个，我们就可以给特定的一个或者一些commit起名字而不是用哈希值来表示了。</p>
+<p>我们经常需要一个名字来表示我们当前指向的快照，这样我们在创建新的快照的时候就可以直接知道它的parent该指向谁了。在Git中这个引用叫<code>HEAD</code></p>
+<h2 id="仓库">仓库</h2>
+<p>最终，我们可以粗糙的定义一下Git仓库：它是数据对象和引用。</p>
+<p>在硬盘中，Git存储的是对象和引用，这就是Git数据模型的全部。所有的Git命令都对应着在commit的有向无环图上的操作，通过增加对象和增改引用。</p>
+<p>不论何时你键入何种命令，想想它对应在“图”上的哪种操作吧！相反的，当你想要在commit有向无环图上做任何事情的时候，都有对应的命令可以做到。例如你想丢弃尚未commit的更改并使得<code>master</code>指向commit<code>5d83f9e</code>，它对应的命令是<code>git checkout master; git reset --hard 5d83f9e</code>。</p>
+<h1 id="暂存区">暂存区</h1>
+<p>这是一个与数据模型正交的概念，它是创建commit的界面。</p>
+<p>一种你可以想象到的创建如上文所述的快照的方法是通过一跳&quot;create snapshot&quot;命令创造一个基于当前状态的快照。一些版本控制系统这样搞但是Git不是。我们需要一个干净的快照，而且直接从当前的状态创建很可能不太合适。例如，想象一个场景实现了两个特性，你希望创建两个分开的commit。或者这样一个场景，你在你修bug的时候加了一些调试输出命令然而你只需要把你修bug的代码交上去。</p>
+<p>所以Git允许你指定你要提交的修改，这个机制叫“暂存区”</p>
+<h1 id="git命令行界面">Git命令行界面</h1>
+<p>这里就不仔细介绍每个命令了，去看<a href="https://git-scm.com/book/en/v2"target="_blank">Pro Git</a>吧！当然也有视频课程。</p>
+<h2 id="基础">基础</h2>
+<ul>
+<li>git help <command>: 帮助</li>
+<li>git init: 原地见库，数据放在<code>.git</code>目录里</li>
+<li>git status: 现在库的状态</li>
+<li>git add <filename>: 扔文件进暂存区</li>
+<li>git commit: 创建commit</li>
+<li>git log: 展开式的显示log</li>
+<li>git log &ndash;all &ndash;graph &ndash;decorate: 以有向无环图的形式展示log</li>
+<li>git diff <filename>: 从上次提交到现在的变化</li>
+<li>git diff <revision> <filename>: 两次快照之间的变化</li>
+<li>git checkout <revision>: 更新当前分支与<code>HEAD</code>引用</li>
+</ul>
+<h2 id="分支与合并">分支与合并</h2>
+<ul>
+<li>git branch: 显示分支</li>
+<li>git branch <name>: 创建分支</li>
+<li>git checkout -b <name>: 创建分支并切换过去，与<code>same as git branch &lt;name&gt;; git checkout &lt;name&gt;</code>等价</li>
+<li>git merge <revision>: 合并入当前分支</li>
+<li>git mergetool: 用一个牛逼的工具解决合并冲突</li>
+<li>git rebase: 变&hellip;变基</li>
+</ul>
+<h2 id="远程">远程</h2>
+<ul>
+<li>git remote: 列出远端</li>
+<li>git remote add <name> <url>: 增加一个远端</li>
+<li>git push <remote> <local branch>:<remote branch>: 上传对象到远程端，并更新远程端指针</li>
+<li>git branch &ndash;set-upstream-to=<remote>/<remote branch>: 设置本地与远端的对应关系</li>
+<li>git fetch: 从远程端检索对象或引用</li>
+<li>git pull: <code>git fetch; git merge</code></li>
+<li>git clone: 从远端拖库下来</li>
+</ul>
+<h2 id="undo">Undo</h2>
+<ul>
+<li>git commit &ndash;amend: 编辑当前commit的内容和提交信息</li>
+<li>git reset HEAD <file>: 从暂存区踢掉文件</li>
+<li>git checkout &ndash; <file>: 丢弃变化</li>
+</ul>
+<h1 id="高级话题">高级话题</h1>
+<ul>
+<li>git config: Git是高度可配置的</li>
+<li>git clone &ndash;shallow: 在拖库的时候不把整个历史弄下来</li>
+<li>git add -p: 交互式暂存</li>
+<li>git rebase -i: 交互式变基</li>
+<li>git blame: 看看是谁改的这一行</li>
+<li>git stash: 暂时性的从工作区中移除改变</li>
+<li>git bisect: 二分搜索</li>
+<li>.gitignore: 指定一些文件不被跟踪</li>
+</ul>
+<h1 id="资源">资源</h1>
+<ul>
+<li><a href="https://git-scm.com/book/en/v2"target="_blank">Pro Git</a>一定要看，1-5章教你怎么好好用Git。在最后一章有些高级话题。</li>
+<li><a href="https://ohshitgit.com/"target="_blank">Oh Shit,Git!?</a> 很短的指南，告诉你犯错了怎么办</li>
+<li><a href="https://eagain.net/articles/git-for-computer-scientists/"target="_blank">Git for Computer Scientists</a>简要的介绍了Git的数据模型，又很多比这篇文章还好看的图标</li>
+<li><a href="https://jwiegley.github.io/git-from-the-bottom-up/"target="_blank">Git from the Bottom Up</a>解释了Git的一些实现细节</li>
+<li><a href="https://smusamashah.github.io/blog/2017/10/14/explain-git-in-simple-words"target="_blank">How to explain git in simple words</a></li>
+<li><a href="https://learngitbranching.js.org/"target="_blank">Learn Git Branching</a>基于浏览器的游戏来教你用Git</li>
+</ul></article><section class="article labels"><a class="tag" href=/tags/missing-semester/>Missing Semester</a><a class="tag" href=/tags/notes/>notes</a><a class="tag" href=/tags/git/>git</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/missing-semester-notes-06/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Debugging and Profiling</a></p><p><a class="link" href="/posts/missing-semester-notes-04/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Command-line Environment</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

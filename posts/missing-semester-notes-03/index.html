@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Missing Semester Notes - Data Wrangling&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Missing Semester Notes - Data Wrangling" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Missing Semester Notes - Data Wrangling</h1><p class="article date">2020-05-16</p></section><article class="article markdown-body"><p>数据整理</p>
+<p>原文连接：https://missing.csail.mit.edu/2020/data-wrangling/</p>
+<h1 id="数据整理">数据整理</h1>
+<p>大家都会遇到需要把一种格式的数据转换到另一种格式的问题，这节课就是介绍这些技巧。</p>
+<p>在预备节Shell中大家已经知道了<code>|</code>操作符。例如你使用<code>journalctl | grep -i intel</code>，这条指令可以找出所有提到了<code>intel</code>的日志。你可能不会觉得这是一种数据整理，但它确实是把一种格式的数据转换成了另一种格式。</p>
+<p>让我们从简单点的东西开始。日志是很好的例子，因为你会经常研究他们。例如说想看看谁试着登录我的服务器</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">ssh myserver journalctl
+</code></pre></div><p>输出的内容太多了，让我们只看ssh有关的内容</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">ssh myserver journalctl <span class="p">|</span> grep sshd
+</code></pre></div><p>注意到我们正在通过<code>grep</code>在本机上使用远程文件pipe流。关于<code>ssh</code>我们会在之后的命令行环境中详细介绍。这条命令的输出还是太多了太难读了，我们继续改进。</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">ssh myserver <span class="s1">&#39;journalctl | grep ssh | grep &#34;Disconnected from&#34; &#39;</span> <span class="p">|</span> less
+</code></pre></div><p>为什么我们在一段命令前加了引号？因为输出太多，我们希望尽量少的占用网络资源。<code>less</code>命令允许我们按照页来滚动浏览很长的输出。为了保存输出为了以后分析使用，我们可以把命令存到文件中。</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">$ ssh myserver <span class="s1">&#39;journalctl | grep sshd | grep &#34;Disconnected from&#34;&#39;</span> &gt; ssh.log
+$ less ssh.log
+</code></pre></div><p>然而还是有很多噪音。有很多去掉他们的方法，但这里我们看一个最强大的工具<code>sed</code></p>
+<p><code>sed</code>是一个基于老<code>ed</code>编辑器构建的“流编辑器”。用它你可以仅仅给出非常短的关于如何修改文件的指令，而不是直接修改它的内容。它支持的命令种类太多了，但是最常用的是<code>s</code>（替换substitution）。举个栗子：</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">ssh myserver journalctl
+  <span class="p">|</span> grep sshd
+  <span class="p">|</span> grep <span class="s2">&#34;Disconnected from&#34;</span>
+  <span class="p">|</span> sed <span class="s1">&#39;s/.*Disconnected from //&#39;</span>
+</code></pre></div><p>我们写的是一个简单的正则表达式，是一种非常有力的让你使用模式匹配文本的结构。</p>
+<p><code>s</code>命令使用如下的形式 <code>s/REGEX/SUBSTITUTION</code>，<code>REGEX</code>是你的匹配用的表达式，<code>SUBSTITUTION</code>是的要替换上去的文本。</p>
+<h2 id="正则表达式">正则表达式</h2>
+<p>正则表达式有点复杂但是足够牛逼到值得你花时间去学。我们就从刚刚我们已经用过的表达式<code>/.*Disconnected from /</code>开始。正则表达式常常（不是总是）被<code>/</code>所包围。大多数ASCII字符仅仅带有他们本身的意义，但是少数字符有着特别的用于匹配的作用。不过在不同的正则表达式实现中，不同字符表达不同含义这件事确实会令人沮丧。</p>
+<p>一些常见的的模式：</p>
+<ul>
+<li><code>.</code> 表示除了换行符外 “任意单个字符”</li>
+<li><code>*</code> 0次或多次前述匹配</li>
+<li><code>+</code> 1次或多次前述匹配</li>
+<li><code>[abc]</code> 在<code>a</code>,<code>b</code>,<code>c</code>中任意的字符</li>
+<li><code>(RX1|RX2)</code> 匹配任意<code>RX1</code>或<code>RX2</code>的东西</li>
+<li><code>^</code> 行首</li>
+<li><code>$</code> 行尾</li>
+</ul>
+<p><code>sed</code>的正则表达式有点点奇怪，会要求你在上述的模式前加一个<code>\</code>，或者你传个参数<code>-E</code></p>
+<p>好了，让我们回到<code>/.*Disconnected from /</code>，它匹配了拥有任意数量字符前缀并跟着<code>Disconnected from</code>的字符串，这正是我们想要的。但是要小心哟，正则表达式是有些tricky的，如果有人用<code>Disconnected from</code>作为用户名登录呢？</p>
+<div class="highlight"><pre class="chroma"><code class="language-plain" data-lang="plain">Jan 17 03:13:00 thesquareplanet.com sshd[2631]: Disconnected from invalid user Disconnected from 46.97.239.16 port 55920 [preauth]
+</code></pre></div><p>因为<code>*</code>与<code>+</code>都是贪心匹配，它们会一直匹配尽可能多的文本。所以在上面的行中匹配最终会得到<code>46.97.239.16 port 55920 [preauth]</code>。这不是我们想要的。在一些正则表达式的实现中，你可以给<code>*</code>或<code>+</code>加个<code>?</code>作为后缀去关闭它们的贪心匹配属性。但不幸的是，<code>sed</code>不支持这个语法。我们可以换用perl的命令行模式来实现这个表达式。</p>
+<div class="highlight"><pre class="chroma"><code class="language-perl" data-lang="perl"><span class="n">perl</span> <span class="o">-</span><span class="n">pe</span> <span class="s">&#39;s/.*Disconnected from //&#39;</span>
+</code></pre></div><p>跑偏了，回到<code>sed</code>，毕竟这才是真正常用的工具。<code>sed</code>还可以做些其他事情比如打印匹配到的文本之后的数行，在调用中执行多个替换，搜索等等。但这里我们不会介绍那么多。<code>sed</code>是个能做很多事的东西，但通常有一些更好的工具。</p>
+<p>又跑偏了，所以这里需要去掉多余的后缀。只匹配用户名尤其是带空格的用户名后的文本是困难的，所以这里我们直接按整行匹配。</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell"><span class="p">|</span> sed -E <span class="s1">&#39;s/.*Disconnected from (invalid |authenticating )?user .* [^ ]+ port [0-9]+( \[preauth\])?$//&#39;</span>
+</code></pre></div><p>让我们在<a href="https://regex101.com/r/qqbZqh/2"target="_blank">regex debugger</a>中看看发生了什么。开头与之前的表达式一样，之后我们匹配任意user，然后我们匹配任意username，然后我们匹配任意单词（<code>[^ ]+</code>任意非空格字符的非空序列），然后匹配单词port后跟一串数字，然后匹配可能的后缀<code>[preauth]</code>，然后结束整行。</p>
+<p>所以你现在知道了为啥这样就不会被Disconnected from这个用户名所影响了吗？</p>
+<p>但这个表达式还有个问题，就是整个log会变空。毕竟我们希望保持用户名，为了这点我们可以用到“抓取组”的功能。任意被小括号包围的表达式匹配上的文本将被放入按数字编号的抓取组中。这些组直接可以被替换（甚至在一些引擎中，连表达式都可以被替换）用<code>\1</code>,<code>\2</code>,<code>\3</code>等</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell"><span class="p">|</span> sed -E <span class="s1">&#39;s/.*Disconnected from (invalid |authenticating )?user (.*) [^ ]+ port [0-9]+( \[preauth\])?$/\2/&#39;</span>
+</code></pre></div><p>正如你所想的，你可以写出一个非常复杂的表达式。例如<a href="https://www.regular-expressions.info/email.html"target="_blank">这篇文章</a>讨论了你如何匹配一个电子邮件地址，这其实<a href="https://emailregex.com/"target="_blank">并不简单</a>，已经有非常多的<a href="https://stackoverflow.com/questions/201323/how-to-validate-an-email-address-using-a-regular-expression/1917982"target="_blank">讨论</a>了。这里有别人写好的<a href="https://fightingforalostcause.net/content/misc/2006/compare-email-regex.php"target="_blank">test</a>和<a href="https://mathiasbynens.be/demo/url-regex"target="_blank">评价</a>。还有个<a href="https://www.noulakaz.net/2007/03/18/a-regular-expression-to-check-for-prime-numbers/"target="_blank">例子</a>是写一个表达式判断给出的数是否是素数。</p>
+<h2 id="回到数据整理">回到数据整理</h2>
+<p>好了，我们现在有了</p>
+<pre><code>ssh myserver journalctl
+ | grep sshd
+ | grep &quot;Disconnected from&quot;
+ | sed -E 's/.*Disconnected from (invalid |authenticating )?user (.*) [^ ]+ port [0-9]+( \[preauth\])?$/\2/'
+</code></pre><p><code>sed</code>可以做一切好玩的事情，比如说注入文本（用<code>i</code>命令），显示的输出行（用<code>p</code>命令），根据索引选择行等等，用<code>man</code>看看吧。</p>
+<p>虽然我们现在可以打印出所有每次尝试登陆的用户名，但好像并没有什么卵用。来看看更通用的版本：</p>
+<pre><code>ssh myserver journalctl
+ | grep sshd
+ | grep &quot;Disconnected from&quot;
+ | sed -E 's/.*Disconnected from (invalid |authenticating )?user (.*) [^ ]+ port [0-9]+( \[preauth\])?$/\2/'
+ | sort | uniq -c
+</code></pre><p><code>sort</code>将排序所有的输出，<code>uniq -c</code>将会把连续的相同行折叠成一行，并把相同的数量作为前缀。我们更想将这种信息也进行排序并只留下最多的那些类型。</p>
+<pre><code>ssh myserver journalctl
+ | grep sshd
+ | grep &quot;Disconnected from&quot;
+ | sed -E 's/.*Disconnected from (invalid |authenticating )?user (.*) [^ ]+ port [0-9]+( \[preauth\])?$/\2/'
+ | sort | uniq -c
+ | sort -nk1,1 | tail -n10
+</code></pre><p><code>sort -n</code>将会以数字序排序（而非字母序）。<code>-k1,1</code>表示仅仅使用第一个被空字符分隔的列作为指标进行排序。<code>n</code>表示排序到第<code>n</code>号域，默认是行尾（在这个例子中把整行去排序是没问题的，以后会学到其他）。如果我们需要去最少相同次数的行，在这里可以用<code>head</code>而不是<code>tail</code>，或者换成<code>sort -r</code>表示反向排序。</p>
+<pre><code>ssh myserver journalctl
+ | grep sshd
+ | grep &quot;Disconnected from&quot;
+ | sed -E 's/.*Disconnected from (invalid |authenticating )?user (.*) [^ ]+ port [0-9]+( \[preauth\])?$/\2/'
+ | sort | uniq -c
+ | sort -nk1,1 | tail -n10
+ | awk '{print $2}' | paste -sd,
+</code></pre><p>我们从新加入的<code>paste</code>开始：它让你通过给定的单个分隔符(<code>,</code>)<code>-d</code>与行<code>-s</code>结合。但<code>awk</code>又是什么东西呢？</p>
+<h2 id="awk-另一个编辑器">awk 另一个编辑器</h2>
+<p><code>awk</code>本来是个编程语言，碰巧在流式文本处理上非常牛逼。它也有很多东西可以说，但是这里只介绍一下基础。</p>
+<p>首先，<code>{print $2}</code>是什么意思呢？<code>awk</code>程序采用一个可选模式加上一个块的形式，表示如果匹配上了应该做什么。默认模式（也就是这个命令中用到的）是匹配所有行。在块内，<code>$0</code>被设置成整个行的内容，<code>$1</code>到<code>$n</code>被设置成行上的第<code>n</code>号域（分割依据是<code>awk</code>域分隔符，默认为空格，可以用<code>-F</code>指定）。在上述例子中，整个意思是“对每一行，输出这一行的第二个域” 恰好是对应用户名的域。</p>
+<p>让我们看看我们还可以做什么好玩的事情。比如计算只用过一次的以<code>c</code>开头以<code>e</code>结尾的用户名：</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell"> <span class="p">|</span> awk <span class="s1">&#39;$1 == 1 &amp;&amp; $2 ~ /^c[^ ]*e$/ { print $2 }&#39;</span> <span class="p">|</span> wc -l
+</code></pre></div><p>很多参数全堆在一起了。首先，注意到我们现在有了模式串。这个模式串表示这一行的第一个域应该等于<code>1</code>，第二个域应该能被正则表达式匹配上，在块中表示只输出第二个域。然后我们用<code>wc -l</code>统计输出的行数。</p>
+<p>还记得<code>awk</code>是个编程语言吗？</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">BEGIN <span class="o">{</span> <span class="nv">rows</span> <span class="o">=</span> <span class="m">0</span> <span class="o">}</span>
+<span class="nv">$1</span> <span class="o">==</span> <span class="m">1</span> <span class="o">&amp;&amp;</span> <span class="nv">$2</span> ~ /^c<span class="o">[</span>^ <span class="o">]</span>*e$/ <span class="o">{</span> <span class="nv">rows</span> <span class="o">+=</span> <span class="nv">$1</span> <span class="o">}</span>
+END <span class="o">{</span> print rows <span class="o">}</span>
+</code></pre></div><p><code>BEGIN</code>是一个模式串表示匹配输入的起点（<code>END</code>匹配终点）。然后每行都会在末尾加上他的计数。其实我们前面可以完全不用<code>grep</code>和<code>sed</code>因为<code>awk</code>就可以实现所有的<a href="https://backreference.org/2010/02/10/idiomatic-awk/"target="_blank">功能</a>。</p>
+<h1 id="分析数据">分析数据</h1>
+<p>你可以做些算数。比如说，把每行的数字加起来</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell"> <span class="p">|</span> paste -sd+ <span class="p">|</span> bc -l
+</code></pre></div><p>或者写一些更复杂的表达式</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell"><span class="nb">echo</span> <span class="s2">&#34;2*(</span><span class="k">$(</span>data <span class="p">|</span> paste -sd+<span class="k">)</span><span class="s2">)&#34;</span> <span class="p">|</span> bc -l
+</code></pre></div><p>你可以用多种方式获取更多的统计值。<code>st</code>是非常好用的如果你已经有R的话</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">ssh myserver journalctl
+ <span class="p">|</span> grep sshd
+ <span class="p">|</span> grep <span class="s2">&#34;Disconnected from&#34;</span>
+ <span class="p">|</span> sed -E <span class="s1">&#39;s/.*Disconnected from (invalid |authenticating )?user (.*) [^ ]+ port [0-9]+( \[preauth\])?$/\2/&#39;</span>
+ <span class="p">|</span> sort <span class="p">|</span> uniq -c
+ <span class="p">|</span> awk <span class="s1">&#39;{print $1}&#39;</span> <span class="p">|</span> R --slave -e <span class="s1">&#39;x &lt;- scan(file=&#34;stdin&#34;, quiet=TRUE); summary(x)&#39;</span>
+</code></pre></div><p>R是另一个奇怪的编程语言，主要用于分析数据和绘制图表。我们不会说太多，<code>summary</code>打印矩阵的总结统计信息，而我们从流式输入的数字中计算出矩阵，所有R各科给出我们想要的统计信息。</p>
+<p>如果我们只是单纯的想画个图，<code>gnuplot</code>就足够啦</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">ssh myserver journalctl
+ <span class="p">|</span> grep sshd
+ <span class="p">|</span> grep <span class="s2">&#34;Disconnected from&#34;</span>
+ <span class="p">|</span> sed -E <span class="s1">&#39;s/.*Disconnected from (invalid |authenticating )?user (.*) [^ ]+ port [0-9]+( \[preauth\])?$/\2/&#39;</span>
+ <span class="p">|</span> sort <span class="p">|</span> uniq -c
+ <span class="p">|</span> sort -nk1,1 <span class="p">|</span> tail -n10
+ <span class="p">|</span> gnuplot -p -e <span class="s1">&#39;set boxwidth 0.5; plot &#34;-&#34; using 1:xtic(2) with boxes&#39;</span>
+</code></pre></div><h2 id="整理数据作为参数">整理数据作为参数</h2>
+<p>有时候你希望你整理一个很长的列表作为安装或者卸载的参数。<code>xargs</code>是个很好的东西。</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">rustup toolchain list <span class="p">|</span> grep nightly <span class="p">|</span> grep -vE <span class="s2">&#34;nightly-x86&#34;</span> <span class="p">|</span> sed <span class="s1">&#39;s/-x86.*//&#39;</span> <span class="p">|</span> xargs rustup toolchain uninstall
+</code></pre></div><h2 id="整理二进制数据">整理二进制数据</h2>
+<p>至今我们都只整理过文本类数据，但pipes也是可以搞二进制数据了。我们可以用ffmpeg从摄像头拍一张照片，转换成灰度，压缩，然后用ssh传到远程机器上解压拷贝显示。</p>
+<div class="highlight"><pre class="chroma"><code class="language-shell" data-lang="shell">ffmpeg -loglevel panic -i /dev/video0 -frames <span class="m">1</span> -f image2 -
+ <span class="p">|</span> convert - -colorspace gray -
+ <span class="p">|</span> gzip
+ <span class="p">|</span> ssh mymachine <span class="s1">&#39;gzip -d | tee copy.jpg | env DISPLAY=:0 feh -&#39;</span>
+</code></pre></div></article><section class="article labels"><a class="tag" href=/tags/missing-semester/>Missing Semester</a><a class="tag" href=/tags/notes/>notes</a><a class="tag" href=/tags/shell/>shell</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/missing-semester-notes-04/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Command-line Environment</a></p><p><a class="link" href="/posts/missing-semester-notes-02/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Editor(Vim)</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

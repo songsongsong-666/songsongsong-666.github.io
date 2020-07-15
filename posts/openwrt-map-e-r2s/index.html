@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Openwrt MAP-E 设置小记 (ISP OCN &#43; Device Nanopi-R2S)&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Openwrt MAP-E 设置小记 (ISP OCN &#43; Device Nanopi-R2S)" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Openwrt MAP-E 设置小记 (ISP OCN + Device Nanopi-R2S)</h1><p class="article date">2020-06-27</p></section><article class="article markdown-body"><p>折腾了一整天，终于给家里的网配上了IPV4 over IPV6。虽然用的是VDSL，但是jitter大幅度下降对游戏体验来说还是有不错的提升。</p>
+<h1 id="0x00-background">0x00 Background</h1>
+<p>线路：OCN 光 with フレッツ，100M上下对等VDSL
+设备：NTT VDSL猫 + Netgear RAX120 + Nanopi R2S
+坐标：东京都目黑区</p>
+<p>由于WFH需要用的Remote Desktop，对网络质量的要求瞬间就提高了，尤其是在jitter方面。毕竟谁都不喜欢写着代码然后突然卡顿个几秒，本来就烦躁的心情可能瞬间被点燃。</p>
+<p>多方搜索 + 翻箱倒柜找出签宽带的合约（这又是另一个故事了，打电话直接和NTT签的约导致交了全额工事费，约等于1000RMB的智商税），发现IPv6是默认开通的。于是乎先把之前用的破路由换成了RAX120，之后v6设置Pass through，这样内网每个机器都能直接dhcp到一个v6地址，平时要从自己的workstation上刷家里的机器也非常方便了。</p>
+<p>6月开始NTT自社的ISP都开始分批免费提供Ipv4 Over Ipv6（简称4in6）的服务了（之前要额外500円一个月租用OCN提供的专门设备）。根据同事的说法，所有换成IPIP方案之后的连接不论ISP都有大幅度提升，心里就开始痒了起来。由于手头正好有个玩具Nanopi R2S，就准备先干它娘的一炮？</p>
+<h1 id="0x01-不太对劲">0x01 不太对劲</h1>
+<p>由于自己不懂日语，整个过程比较抓瞎。根据OCN官网给出的检查自己是否已经<a href="https://support.ntt.com/hikari/faq/detail/pid2300000h6p"target="_blank">被开通了</a>的流程，发现自己和之前一样，还没有轮到新的服务，状态是： IPoE［提供中］ IPoE（ホームゲートウェイ対応）［未提供］。根据说明，还是只有NTT专用设备或者兼容网关才能够连接4in6，而RAX120居然不是它的兼容网关。（后记：这里我又一点比较疑惑，它最后是要怎么做到不用特殊的协议就实现4in6的？？？拭目以待）但是已经燃起的折腾之心怎么能在这里止步。</p>
+<h1 id="0x02-贼心不死">0x02 贼心不死</h1>
+<p>于是就开始研究OpenWrt如何设置作为兼容网关。进行一番搜索之后发现之所以RAX120不支持MAP-E只支持DS-lite的原因很可能是MAP-E协议的参数都是需要在本地设置的，这就导致固件中不得不添加与特定厂商的协商代码（后记：NTT系列采用Web API + secret key来传递这些参数）。又进行了一番搜索，发现神通广大的日本网友早已<a href="http://ipv4.web.fc2.com/map-e.html"target="_blank">研究出</a>日本几大线路运营商的MAP-E<a href="https://blog.babibubebo.org/archives/1269"target="_blank">参数</a>，于是就有了本文。</p>
+<h1 id="0x03-armbian">0x03 Armbian</h1>
+<p>抱着怀疑的心态，首先验证一下日本网友的帖子是否属实。这时候需要一台能作为PC的Linux机器会比较方便。所幸R2S支持<a href="https://www.armbian.com/nanopi-r2s/"target="_blank">Armbian</a>，这是一个debian系的ARM发行版。先去<a href="http://ipv4.web.fc2.com/map-e.html"target="_blank">http://ipv4.web.fc2.com/map-e.html</a>上将自己PC的v6信息填上去拿到算出来的参数，待Armbian刷上以后去根据<a href="https://qiita.com/kakinaguru_zo/items/2764dd8e83e54a6605f2"target="_blank">Ubuntu / Debian でIPv4 over IPv6 (OCNバーチャルコネクト, v6プラス)</a>的内容设置了一下，发现是可以联通的。（具体细节略过，此非重点）</p>
+<p>这个帖子提供了一个iptables setting script，是模拟openwrt中map插件的设置来直接操作iptables的。注意，Armbian最新版已经升级了iptables的后端，要执行脚本的话请切换回老的后端（命令搜一下就有了）</p>
+<pre><code>#!/bin/sh
+#set -x
+# このスクリプトはポートを240個しか使ってくれないため、常用するならおまけ１の方法を使うか自分でスクリプトを
+# 改造して1008個のポート（OCN系の場合）を使い切るようにしたほうがよい。そうしないとポート不足で
+# 通信不能になる頻度が増える。またUDP Lite, SCTP, DCCPなどのIPv4パケットもMAP-Eで通るが
+# それらに以下のスクリプトは対応していない
+BR='スクショのoption peeraddrのアドレスをそのまま書く'
+CE='スクショのCEを書く'
+IP4='スクショのIPv4アドレスを書く'
+PSID='スクショのPSIDを書く'
+WANDEV='上記のip addressコマンドで特定したインターフェース'
+TUNDEV='ip6tnl1' # 新たに作り出すインターフェース名をは好きなように決める
+
+ip -6 addr add $CE dev $WANDEV
+ip -6 tunnel add $TUNDEV mode ip4ip6 remote $BR local $CE dev $WANDEV encaplimit none
+ip link set dev $TUNDEV mtu 1460
+ip link set dev $TUNDEV up
+
+ip -4 route delete default
+ip -4 route add default dev $TUNDEV
+
+iptables -t nat -F
+
+rule=1
+while [ $rule -le 15  ] ; do
+  mark=`expr $rule + 16`
+  pn=`expr $rule - 1`
+  portl=`expr $rule \* 4096 + $PSID \* 16`
+  portr=`expr $portl + 15`
+  iptables -t nat -A PREROUTING -m statistic --mode nth --every 15 --packet $pn -j MARK --set-mark $mark
+  iptables -t nat -A OUTPUT -m statistic --mode nth --every 15 --packet $pn -j MARK --set-mark $mark
+
+  iptables -t nat -A POSTROUTING -p icmp -o $TUNDEV -m mark --mark $mark -j SNAT --to $IP4:$portl-$portr
+  iptables -t nat -A POSTROUTING -p tcp -o $TUNDEV -m mark --mark $mark -j SNAT --to $IP4:$portl-$portr
+  iptables -t nat -A POSTROUTING -p udp -o $TUNDEV -m mark --mark $mark -j SNAT --to $IP4:$portl-$portr
+  rule=`expr $rule + 1`
+done
+
+iptables -t mangle -o $TUNDEV --insert FORWARD 1 -p tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1400:65495 -j TCPMSS --clamp-mss-to-pmtu
+</code></pre><p>这个脚本在我的case下问题还是有的，因为Debian做路由器的话还需要一些额外配置，比如V6转发不知道怎么正确设置，系统中还需要调DHCP server、DNS下发等。且如果想复用配置的话还得自己手写个脚本，这对于我有日常v4v6双栈共用 + 不是最新的系统我就要死了的需求来说简直是噩梦。这篇文章还有些其他的干货比如说解决端口不足的方案，这个就等以后遇到了再说吧。</p>
+<p>既然验证了这是个可用的方案，那就去试试OpenWRT就好了。</p>
+<h1 id="0x04-r2s">0x04 R2S</h1>
+<p>依照OpenWRT的尿性，选最接近原版的出问题的概率最小，于是乎从404大佬那儿Fork了一份改叫<a href="https://github.com/songsongsong-666/R2S-OpenWrt-MAP"target="_blank">R2S-OpenWrt-MAP</a>，seed中加上map插件并设置后Github Action，等条件触发自动编译完就好啦。</p>
+<blockquote>
+<p>如果使用官方稳定版支持的设备，可以直接用<code>opkg install map</code>来装这个插件，犯不着重新编译</p>
+</blockquote>
+<p>这个版本V6默认是开的（很多R2S的固件默认关掉V6因为会影响挂梯子），如果你的上游ONU或者路由设置正确的话应该能直接拿到V6地址，例如<code>2400:4050:xxxx:xxxx:....../yy</code>。这个V6地址的<strong>前缀</strong>非常重要，在我的case中必须手动设置上，之后MAP-E才能正常工作。</p>
+<h2 id="config-dhcpv6-设置保证双栈环境">Config DHCPV6 设置保证双栈环境</h2>
+<p>去<code>/etc/config/dhcp</code>（用LUCI也行）把V6的中继打开，保证V6流量都等被bridge到wan口上。</p>
+<pre><code>config dhcp 'lan'
+    option dhcpv6 'relay'
+    option ra 'relay'
+    option ndp 'relay'
+
+config dhcp 'wan6'  
+    option dhcpv6 'relay'
+    option ra 'relay'
+    option ndp 'relay'
+    option master '1' # 将V6作为主接口
+</code></pre><h2 id="config-netifd">Config netifd</h2>
+<p><code>vi /lib/netifd/proto/map.sh</code></p>
+<p>把里面的<code>export LEGACY=1</code>的注释删掉</p>
+<h2 id="network-interface">Network interface</h2>
+<p>这个固件的LUCI在map插件上有点问题，最好还是<code>vi /etc/config/network</code>来改。</p>
+<pre><code>config interface 'wan6'
+        option proto 'dhcpv6'
+        ...
+        list ip6prefix '2400:XXX:XXX:XXX:XXX:XXX:XXX:XXX/64' #有时候机器拿不到自动的PD，直接设定前文提到的你的V6带前缀IP，非常重要
+
+config interface 'wan6_map'
+        option proto 'map'
+        option type 'map-e'
+        option peeraddr 'xxx' # 从这里开始贴之前网页上给出的参数
+        ...
+        option offset 'x'
+        list tunlink 'wan6' # 设置转发端口
+        option mtu '1460' # 隧道的要求 1460
+        #option encaplimit 'ignore' # 有人需要设置该选项来避免 RX 不计数的问题
+</code></pre><p>之后重启一下接口，就大功告成了！！！</p></article><section class="article labels"><a class="tag" href=/tags/openwrt/>openwrt</a><a class="tag" href=/tags/map-e/>map-e</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/docker-hub-arm64-automated-build/"><span class="li iconfont icon-article"></span>使用DockerHub自动构建arm架构Image</a></p><p><a class="link" href="/posts/missing-semester-notes-09/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Potpourri</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>

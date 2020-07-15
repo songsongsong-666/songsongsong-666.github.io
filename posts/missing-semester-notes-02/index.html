@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8"><meta name="generator" content="Hugo 0.70.0" /><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark"><title>Missing Semester Notes - Editor(Vim)&nbsp;&ndash;&nbsp;松松的Blog</title><link rel="stylesheet" href="/css/core.min.1cd1345e6da65a9cce6da75addf1a057905f1550962205dfd43f9c0d90a2c0aaef84b52c7745803cfdf425ca7d266640.css" integrity="sha384-HNE0Xm2mWpzObada3fGgV5BfFVCWIgXf1D&#43;cDZCiwKrvhLUsd0WAPP30Jcp9JmZA"><meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Missing Semester Notes - Editor(Vim)" /><body><section id="header">
+    <div class="header wrap"><span class="header left-side"><a class="site home" href="/"><span class="site name">松松的Blog</span></a></span>
+        <span class="header right-side"><div class="nav wrap"><nav class="nav"><a class="nav item" href="/categories/">Categories</a><a class="nav item" href="/tags/">Tags</a></nav></div></span></div><div class="site slogan"><span class="title">Do Not Go Gentle Into That Good Night</span></div></section><section id="content"><div class="article-container"><section class="article header">
+    <h1 class="article title">Missing Semester Notes - Editor(Vim)</h1><p class="article date">2020-05-15</p></section><article class="article markdown-body"><p>讲讲Vim</p>
+<p>原文链接：https://missing.csail.mit.edu/2020/editors/</p>
+<h1 id="vim哲学">Vim哲学</h1>
+<p>Vim是个模态编辑器。一般来说编辑器在使用时大部分时间是用于看，少部分时间才是操作文本，故设计成对应多个模式。Vim的设计让你的手可以不需要离开键盘，甚至不需要碰方向键因为那样太慢。最终使得你的输入效率可以达到你的思维速度。</p>
+<h1 id="模态编辑">模态编辑</h1>
+<ul>
+<li>常规模式：看文件与编辑文件</li>
+<li>插入模式：插入新文本</li>
+<li>替换模式：顾名思义</li>
+<li>可视模式：（常规，行，块）用于按单位选择文本</li>
+<li>命令行模式：跑命令</li>
+</ul>
+<p>同样的命令在不同的模式下有不同的意义。<code>ESC</code>用于从任何模式退回到正常模式。在正常模式中，用<code>i</code>进入插入模式，用<code>R</code>进入替换模式，用<code>v</code>进入可视模式，用<code>V</code>进入行可视模式，用<code>C-v</code>进入块可视模式，用<code>:</code>进入命令行模式。由于会频繁使用<code>ESC</code>键，可以考虑map到大小写键上方便敲击（尤其是某些按ESC很不方便的机器，没错说的就是你macbook）</p>
+<h1 id="基础">基础</h1>
+<h2 id="插入文本">插入文本</h2>
+<p>进入插入模式，然后和其他编辑器一毛一样</p>
+<h2 id="缓冲区分页和窗口">缓冲区，分页和窗口</h2>
+<p>Vim会维护一个打开文件的集合，叫缓冲区们。一个Vim会话含有一些分页，每个分页含有一些窗口（分屏）。每个窗口展示一个缓冲区。不像其他的应用，这里的缓冲区和窗口不是一一对应的，窗口仅仅作为一个展示器。一个缓冲区可能被多个窗口打开，即使在同一个分页中。这是个十分便利的地方， 例如同时展示同一个文件中不同的部分。</p>
+<p>Vim模式只启动一个分页，一个分页仅仅包含一个窗口。</p>
+<h2 id="命令行">命令行</h2>
+<p>当进入命令行模式后，光标会跳到底部的命令行。命令可以用于打开关闭保存退出种种。</p>
+<ul>
+<li><code>:q</code> 退出</li>
+<li><code>:w</code> 保存</li>
+<li><code>:wq</code> 保存退出</li>
+<li><code>:e {name of file}</code> 打开文件</li>
+<li><code>:ls</code> 显示缓冲区</li>
+<li><code>:help {topic}</code> 打开帮助，可以是按键或者命令</li>
+</ul>
+<h1 id="vim界面是一种编程语言">Vim界面是一种编程语言</h1>
+<p>这是理解Vim的一个重要观点。</p>
+<h2 id="移动">移动</h2>
+<p>大部分时间都在常规模式下使用移动命令浏览缓冲区。移动在Vim中也叫“名词”，因为他们指向文本块。</p>
+<ul>
+<li>基础移动：<code>hjkl</code> 左下上右</li>
+<li>单词粒度：<code>w</code>下一词，<code>b</code>到词首，<code>e</code>到词尾</li>
+<li>行内粒度：<code>0</code>到行首，<code>^</code>到行内首个非空字符，<code>$</code>到行末</li>
+<li>屏幕粒度：<code>H</code>到屏顶，<code>M</code>到屏居中，<code>L</code>到屏底</li>
+<li>滚动：<code>C-u</code>向上，<code>C-d</code>向下</li>
+<li>文件粒度：<code>gg</code>文件首，<code>G</code>文件尾</li>
+<li>行号：<code>:行号&lt;按回车&gt;</code> 或 <code>行号G</code> 或 <code>行号gg</code></li>
+<li>迷：<code>%</code></li>
+<li>行内查找（快速移动）：<code>ftFT+字符</code> f表示向右移动到<code>字符</code>上，大写表示反向。t则表示向右移动到<code>字符</code>前，大写表示反向。<code>;</code>表示重复上一次的命令，<code>,</code>表示反向重复上一次的命令。所有命令前均可加数字。</li>
+<li>搜索：<code>/{regex}</code>，用<code>n</code>/<code>N</code>来选择导航结果</li>
+</ul>
+<h2 id="选择">选择</h2>
+<p>视觉模式有三种：普通 行 块。可以用移动键来做选择。</p>
+<h2 id="编辑">编辑</h2>
+<p>所有你用鼠标熟悉的操作都可以用键盘的命令组合来实现。这正是Vim命令为何与编程语言相似之处。Vim编辑命令也叫动词，因为它们在名词之上进行操作。</p>
+<ul>
+<li><code>i</code> 进入插入模式</li>
+<li><code>o</code> or <code>O</code> 在下或上插入新行</li>
+<li><code>d{motion}</code> 删除<code>{motion}</code></li>
+<li>
+<ul>
+<li>例如<code>dw</code>删除词 <code>d$</code>删除到行末 <code>d0</code>删除到行首</li>
+</ul>
+</li>
+<li><code>c{motion}</code> 可以看作是<code>d{motion}</code> 紧接着<code>i</code></li>
+<li><code>x</code> 删除字符 等价于<code>dl</code></li>
+<li><code>s</code> 替换字符 等价于<code>xi</code></li>
+<li>视觉模式下操作</li>
+<li>
+<ul>
+<li>选择文本后用<code>d</code>或<code>c</code></li>
+</ul>
+</li>
+<li><code>u</code> 撤销 <code>C-r</code> 重做</li>
+<li><code>y</code> 拷贝（yank）</li>
+<li><code>p</code> 粘贴</li>
+<li>很多其他命令例如<code>~</code>可以反转大小写</li>
+</ul>
+<h2 id="计数">计数</h2>
+<p>可以用来与名词或动词连用，表示同一个动作执行数次。</p>
+<ul>
+<li><code>3w</code> 向前移动三行</li>
+<li><code>5j</code> 向下移动5行</li>
+<li><code>7dw</code> 删掉7个词</li>
+</ul>
+<h2 id="组合修改">组合修改</h2>
+<p>用于改变名词的意义。<code>i</code>表示“内部inner”，<code>a</code>表示“周围around”</p>
+<ul>
+<li><code>ci(</code> 若当前在小括号内，整个括号内的内容作为<code>c</code>的对象</li>
+<li><code>ci[</code> 同上，改为方括号</li>
+<li><code>da'</code> 删除一个单引号字符串</li>
+</ul>
+<h1 id="定制vim">定制Vim</h1>
+<p>Vim是一个能够深度定制的编辑器，而且只要放到<code>~/.vimrc</code>就行了</p>
+<h1 id="扩展vim">扩展VIM</h1>
+<p>Vim有一大坨插件，从8.0开始就不需要插件管理器了（网上的老教程会让你装），因为有内置的插件管理系统。</p>
+<p>只需要创建目录<code>~/.vim/pack/vendor/start</code>把插件扔进去。</p>
+<ul>
+<li><a href="https://github.com/ctrlpvim/ctrlp.vim"target="_blank">ctrlp.vim</a> 模糊文件搜索</li>
+<li><a href="https://github.com/mileszs/ack.vim"target="_blank">ack.vim</a> 代码搜索</li>
+<li><a href="https://github.com/scrooloose/nerdtree"target="_blank">nerdtree</a> 文件浏览器</li>
+<li><a href="https://github.com/easymotion/vim-easymotion"target="_blank">vim-easymotion</a> 魔术移动</li>
+</ul>
+<p>这里只是简单的列出了一些插件，<a href="https://vimawesome.com/"target="_blank">vim-awesome</a>有很多好的插件</p>
+<h1 id="进阶">进阶</h1>
+<h2 id="搜索与替换">搜索与替换</h2>
+<p><code>:s</code> 替换命令</p>
+<ul>
+<li><code>%s/foo/bar/g</code> 全局把foo替换成bar</li>
+<li><code>%s/\[.*\](\(.*\))/\1/g</code> 全局把md类型的链接改成普通链接</li>
+</ul>
+<h2 id="多窗口">多窗口</h2>
+<ul>
+<li><code>:sp</code> / <code>:vsp</code> 分屏</li>
+</ul>
+<h2 id="宏">宏</h2>
+<ul>
+<li><code>q{character}</code> 录制并以<code>{character}</code>注册宏</li>
+<li><code>q</code> 停止录制</li>
+<li><code>@{character}</code> 执行宏</li>
+<li><code>{number}@{character}</code> 执行多次</li>
+</ul>
+<p>其他的见原页面</p></article><section class="article labels"><a class="tag" href=/tags/missing-semester/>Missing Semester</a><a class="tag" href=/tags/notes/>notes</a></section></div>
+<div class="article bottom"><section class="article navigation"><p><a class="link" href="/posts/missing-semester-notes-03/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Data Wrangling</a></p><p><a class="link" href="/posts/missing-semester-notes-01/"><span class="li iconfont icon-article"></span>Missing Semester Notes - Shell Tools and Scripting</a></p></section></div></section><section id="footer"><div class="footer-wrap">
+    <p class="copyright">2020 Song.</p>
+    <p class="powerby"><span>Powered by </span><a href="https://gohugo.io" 
+        target="_blank">Hugo</a><span> and the </span><a href="https://themes.gohugo.io/hugo-notepadium/" 
+        target="_blank">Notepadium</a></p>
+</div></section><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/&#43;DiW/UqRcLbRjq" crossorigin="anonymous"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js" integrity="sha384-y23I5Q6l&#43;B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd&#43;qj&#43;o24G5ZU2zJz" crossorigin="anonymous"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js" integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+            onload="renderMathInElement(document.body);"></script><script src="/js/hljs.min.0799348a91dce12c6be4a73f943cfe78f181f4e6f6ec35c4af0fca1de377879f77cfab03c30f03a174d675737b5a9314.js" integrity="sha384-B5k0ipHc4Sxr5Kc/lDz&#43;ePGB9Ob27DXErw/KHeN3h593z6sDww8DoXTWdXN7WpMU"></script><script>hljs.initHighlightingOnLoad();</script>
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-167241500-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+</body>
+
+</html>
